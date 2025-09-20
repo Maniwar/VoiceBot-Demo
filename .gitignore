@@ -1,0 +1,172 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+
+# Environment variables - CRITICAL!
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+.env.development
+.env.production
+.env.test
+
+# API Keys and Secrets - NEVER COMMIT!
+*.key
+*.pem
+*.crt
+secrets/
+credentials/
+*_secret.txt
+*_key.txt
+OPENAI_API_KEY*
+amadeus_credentials.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+log.txt
+
+# Testing - Keep only essential tests
+.coverage
+.pytest_cache/
+.tox/
+coverage/
+htmlcov/
+.nyc_output/
+test_*.py
+!test_basic.py
+debug_*.py
+
+# Voice/Audio files (for testing)
+*.wav
+*.mp3
+*.opus
+*.pcm
+audio_samples/
+recordings/
+
+# Vector Database & Local Data
+*.db
+*.sqlite
+*.sqlite3
+*.faiss
+vector_store/
+embeddings_cache/
+data/chroma_db/
+data/vectordb/
+data/uploads/
+data/*.db
+.chroma/
+chroma.sqlite3
+
+# Session data
+sessions/
+redis-data/
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd
+.cache/
+target/
+out/
+
+# Documentation build
+docs/_build/
+site/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*.old
+/tmp/
+/var/
+
+# Docker - Keep deployment files
+docker-compose.override.yml
+.docker/
+
+# Kubernetes
+*.kubeconfig
+helm-values-*.yaml
+
+# OS files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Performance profiling
+*.prof
+*.lprof
+.benchmarks/
+
+# AWS Deployment - Don't commit sensitive
+task-definition.json
+ecs-params.yml
+.elasticbeanstalk/
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Large/Binary files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.iso
+*.dmg
+
+# Private notes
+NOTES.md
+TODO.md
+private/
+notes.txt

@@ -1,0 +1,41 @@
+{
+  "name": "voicebot-demo",
+  "version": "1.0.0",
+  "description": "Real-time voice bot with OpenAI Realtime API and RAG",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1",
+    "openai": "^4.56.0",
+    "@langchain/core": "^0.1.0",
+    "@langchain/openai": "^0.0.10",
+    "@langchain/community": "^0.0.20",
+    "chromadb": "^1.7.3",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "@types/express": "^4.17.21",
+    "typescript": "^5.3.3",
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,56 @@
+VoiceBot System Manual
+======================
+
+Introduction
+------------
+The VoiceBot system is an advanced real-time voice assistant that combines OpenAI's Realtime API with a powerful Retrieval-Augmented Generation (RAG) system.
+
+Key Features
+------------
+1. Real-time Voice Processing: Utilizes OpenAI's Realtime API for natural voice conversations
+2. Document Search: RAG system allows searching through uploaded documents
+3. API Orchestration: Execute complex workflows and call external APIs
+4. Multi-format Support: Handles PDF, TXT, MD, and JSON files
+
+How to Use the RAG System
+-------------------------
+1. Upload Documents: Click the upload area or drag and drop files
+2. Ask Questions: Speak or type questions about the uploaded content
+3. Get Answers: The AI will search the knowledge base and provide relevant information
+
+Supported Workflows
+------------------
+- Customer Onboarding: Automated multi-step onboarding process
+- Support Ticket: Intelligent ticket categorization and routing
+- Order Processing: End-to-end order management
+- Data Analysis: Automated data fetching and report generation
+
+Technical Specifications
+-----------------------
+- Audio Format: PCM16 at 24kHz sample rate
+- Voice Models: Supports alloy, echo, fable, onyx, nova, and shimmer voices
+- Embedding Model: OpenAI text-embedding-3-small
+- Vector Database: ChromaDB for efficient similarity search
+- WebSocket Protocol: Real-time bidirectional communication
+
+Common Commands
+--------------
+- "Search for [topic]" - Searches the knowledge base
+- "Execute [workflow] workflow" - Runs a predefined workflow
+- "What's in the document about [topic]" - Queries specific document content
+- "Summarize the uploaded files" - Provides an overview of indexed content
+
+Troubleshooting
+--------------
+If the system says it cannot access documents:
+1. Ensure documents are properly uploaded (check the file counter)
+2. Wait for indexing to complete (usually instant)
+3. Be specific in your queries
+4. The system will automatically use the search_knowledge_base function when needed
+
+Security Notes
+-------------
+- All API keys are stored securely in environment variables
+- WebSocket connections use TLS encryption
+- Session management includes automatic timeouts
+- Rate limiting is implemented for API calls

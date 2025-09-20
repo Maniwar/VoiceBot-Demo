@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Button Test</title>
+</head>
+<body>
+    <h1>Testing Admin Button Generation</h1>
+    <div id="test-container"></div>
+    
+    <script>
+        // Test data simulating the amadeus_flight_search endpoint
+        const testEndpoint = {
+            id: "amadeus_flight_search",
+            endpoint_key: "amadeus_flight_search",
+            name: "Amadeus Flight Search",
+            active: true
+        };
+        
+        // Test button generation with proper quoting
+        function generateTestButton() {
+            const container = document.getElementById('test-container');
+            
+            // This is how the button SHOULD be generated
+            const correctHTML = `
+                <div>
+                    <h3>Correct Implementation (with quotes):</h3>
+                    <button onclick="editEndpoint('${testEndpoint.endpoint_key || testEndpoint.id}')" class="btn">
+                        ✏️ Edit (Correct)
+                    </button>
+                    <p>onclick="editEndpoint('amadeus_flight_search')"</p>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <h3>Incorrect Implementation (without quotes):</h3>
+                    <button onclick="editEndpoint(${testEndpoint.id})" class="btn" style="background: #f44336;">
+                        ✏️ Edit (Will Error)
+                    </button>
+                    <p>onclick="editEndpoint(amadeus_flight_search)" - This treats it as a variable!</p>
+                </div>
+            `;
+            
+            container.innerHTML = correctHTML;
+        }
+        
+        // Mock editEndpoint function to show it works
+        function editEndpoint(id) {
+            alert(`Edit endpoint called with ID: ${id}`);
+        }
+        
+        // Generate test buttons on load
+        generateTestButton();
+        
+        console.log('Test page loaded. Click the buttons to test.');
+        console.log('The first button (green) should work.');
+        console.log('The second button (red) will error with "amadeus_flight_search is not defined"');
+    </script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .btn {
+            padding: 8px 16px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.8;
+        }
+        div {
+            margin: 10px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        p {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+        }
+    </style>
+</body>
+</html>

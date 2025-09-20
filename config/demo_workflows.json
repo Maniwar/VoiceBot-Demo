@@ -1,0 +1,191 @@
+{
+  "workflows": [
+    {
+      "id": "weather_check",
+      "name": "Weather Information", 
+      "description": "Get current weather for any city using OpenWeatherMap",
+      "trigger_phrases": [
+        "what's the weather",
+        "weather in",
+        "how's the weather",
+        "temperature in"
+      ],
+      "api_endpoint": "https://wttr.in/{city}?format=j1",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "The weather in {city} is {current_condition[0].temp_C}°C with {current_condition[0].weatherDesc[0].value}"
+    },
+    {
+      "id": "dad_joke",
+      "name": "Dad Joke Generator",
+      "description": "Get a random dad joke",
+      "trigger_phrases": [
+        "tell me a joke",
+        "make me laugh",
+        "dad joke",
+        "funny joke"
+      ],
+      "api_endpoint": "https://icanhazdadjoke.com/",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "response_format": "json",
+      "sample_response": "{joke}"
+    },
+    {
+      "id": "random_fact",
+      "name": "Random Fact",
+      "description": "Get a random interesting fact",
+      "trigger_phrases": [
+        "tell me a fact",
+        "random fact",
+        "interesting fact",
+        "did you know"
+      ],
+      "api_endpoint": "https://uselessfacts.jsph.pl/api/v2/facts/random",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "Here's an interesting fact: {text}"
+    },
+    {
+      "id": "number_trivia",
+      "name": "Number Trivia",
+      "description": "Get trivia about numbers",
+      "trigger_phrases": [
+        "tell me about the number",
+        "number trivia",
+        "fact about number",
+        "what's special about"
+      ],
+      "api_endpoint": "http://numbersapi.com/{number}?json",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "{text}"
+    },
+    {
+      "id": "cat_fact",
+      "name": "Cat Facts",
+      "description": "Get random facts about cats",
+      "trigger_phrases": [
+        "cat fact",
+        "tell me about cats",
+        "cats are",
+        "fact about cats"
+      ],
+      "api_endpoint": "https://catfact.ninja/fact",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "Did you know? {fact}"
+    },
+    {
+      "id": "quote_inspiration",
+      "name": "Inspirational Quote",
+      "description": "Get an inspirational quote",
+      "trigger_phrases": [
+        "inspire me",
+        "motivational quote",
+        "inspirational quote",
+        "give me a quote"
+      ],
+      "api_endpoint": "https://api.quotable.io/random",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "{content} - {author}"
+    },
+    {
+      "id": "bored_activity",
+      "name": "Activity Suggestion",
+      "description": "Get suggestions for activities when bored",
+      "trigger_phrases": [
+        "I'm bored",
+        "what should I do",
+        "suggest an activity",
+        "give me something to do"
+      ],
+      "api_endpoint": "https://www.boredapi.com/api/activity",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "Why don't you try: {activity}. It's a {type} activity for {participants} person(s)."
+    },
+    {
+      "id": "dog_image",
+      "name": "Random Dog Image",
+      "description": "Get a random dog image URL",
+      "trigger_phrases": [
+        "show me a dog",
+        "dog picture",
+        "cute dog",
+        "random dog"
+      ],
+      "api_endpoint": "https://dog.ceo/api/breeds/image/random",
+      "method": "GET",
+      "response_format": "json",
+      "sample_response": "Here's a cute dog picture: {message}"
+    }
+  ],
+  "functions": [
+    {
+      "name": "get_weather",
+      "description": "Get weather information for a specific city",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "The city to get weather for"
+          }
+        },
+        "required": ["city"]
+      },
+      "implementation": "fetch_weather_api"
+    },
+    {
+      "name": "tell_joke",
+      "description": "Tell a random joke",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["dad", "programming", "general"],
+            "description": "Type of joke",
+            "default": "dad"
+          }
+        }
+      },
+      "implementation": "fetch_joke_api"
+    },
+    {
+      "name": "get_fact",
+      "description": "Get a random interesting fact",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["random", "cat", "number", "date"],
+            "description": "Category of fact",
+            "default": "random"
+          }
+        }
+      },
+      "implementation": "fetch_fact_api"
+    },
+    {
+      "name": "search_knowledge",
+      "description": "Search the uploaded knowledge base",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          }
+        },
+        "required": ["query"]
+      },
+      "implementation": "search_rag_knowledge"
+    }
+  ]
+}

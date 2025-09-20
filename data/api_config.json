@@ -1,0 +1,1003 @@
+{
+  "endpoints": [
+    {
+      "id": "weather",
+      "name": "Weather API",
+      "description": "Get current weather for any city",
+      "url": "https://wttr.in/{city}?format=j1",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "weather",
+        "temperature",
+        "forecast"
+      ],
+      "example": "What's the weather in London?",
+      "params": [
+        "city"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Weather & Environment",
+      "active": true
+    },
+    {
+      "id": "ipinfo",
+      "name": "IP Information API",
+      "description": "Get information about an IP address including location and ISP",
+      "url": "https://ipinfo.io/{ip}/json",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "ip address",
+        "ip info",
+        "ip location",
+        "what is my ip"
+      ],
+      "example": "What's the location of IP 8.8.8.8?",
+      "params": [
+        "ip"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "zipcode",
+      "name": "Zip Code Info API",
+      "description": "Get information about a US zip code",
+      "url": "https://api.zippopotam.us/us/{zipcode}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "zip code",
+        "postal code",
+        "area code"
+      ],
+      "example": "What city is zip code 90210?",
+      "params": [
+        "zipcode"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "amadeus_flight_search",
+      "name": "Amadeus Flight Search API",
+      "description": "Search for flights using Amadeus API (requires Client ID and Secret)",
+      "url": "HANDLED_BY_SERVER",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "trigger_phrases": [
+        "flight",
+        "flights",
+        "fly",
+        "airfare",
+        "plane ticket",
+        "book flight"
+      ],
+      "example": "Find flights from New York to London on December 15th",
+      "params": [
+        "origin",
+        "destination",
+        "departure_date",
+        "return_date",
+        "adults",
+        "children",
+        "infants",
+        "travel_class",
+        "nonstop"
+      ],
+      "body_template": {
+        "origin": "{origin}",
+        "destination": "{destination}",
+        "departure_date": "{departure_date}",
+        "return_date": "{return_date}",
+        "adults": "{adults}",
+        "children": "{children}",
+        "infants": "{infants}",
+        "travel_class": "{travel_class}",
+        "nonstop": "{nonstop}"
+      },
+      "params_required": [
+        "origin",
+        "destination",
+        "departure_date"
+      ],
+      "client_id": "",
+      "client_secret": "",
+      "auth_type": "oauth2",
+      "auth_param": "client_credentials",
+      "search_engine_id": "",
+      "category": "Travel & Flights",
+      "active": true
+    },
+    {
+      "id": "travelpayouts_affiliate",
+      "name": "Travelpayouts Affiliate API",
+      "description": "Generate affiliate booking links for flights (requires Token and Marker ID)",
+      "url": "HANDLED_BY_SERVER",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "trigger_phrases": [],
+      "example": "Generate booking link for flights",
+      "params": [],
+      "auth_type": "custom",
+      "auth_param": "token",
+      "search_engine_id": "",
+      "category": "Travel & Flights",
+      "active": false
+    },
+    {
+      "id": "countries",
+      "name": "Countries API",
+      "description": "Get information about countries",
+      "url": "https://restcountries.com/v3.1/name/{country}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "country",
+        "capital",
+        "population",
+        "flag"
+      ],
+      "example": "Tell me about France",
+      "params": [
+        "country"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "dad_jokes",
+      "name": "Dad Joke API",
+      "description": "Get random dad jokes",
+      "url": "https://icanhazdadjoke.com/",
+      "method": "GET",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "trigger_phrases": [
+        "joke",
+        "funny",
+        "laugh"
+      ],
+      "example": "Tell me a joke",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "chucknorris",
+      "name": "Chuck Norris Jokes API",
+      "description": "Get Chuck Norris jokes",
+      "url": "https://api.chucknorris.io/jokes/random",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "chuck norris",
+        "tough joke"
+      ],
+      "example": "Tell me a Chuck Norris joke",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "trivia",
+      "name": "Trivia Question API",
+      "description": "Get random trivia questions",
+      "url": "https://the-trivia-api.com/v2/questions?limit=1",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "trivia",
+        "quiz",
+        "question"
+      ],
+      "example": "Ask me a trivia question",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "pokemon",
+      "name": "Pokemon API",
+      "description": "Get information about Pokemon",
+      "url": "https://pokeapi.co/api/v2/pokemon/{pokemon}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "pokemon",
+        "pikachu",
+        "pok\u00e9dex"
+      ],
+      "example": "Tell me about Pikachu",
+      "params": [
+        "pokemon"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "starwars",
+      "name": "Star Wars API",
+      "description": "Get Star Wars universe information",
+      "url": "https://swapi.dev/api/people/?search={character}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "star wars",
+        "jedi",
+        "force"
+      ],
+      "example": "Tell me about Luke Skywalker",
+      "params": [
+        "character"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "activity",
+      "name": "Activity Suggestion API",
+      "description": "Get random activity suggestions",
+      "url": "https://boredapi.com/api/activity",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "bored",
+        "activity",
+        "something to do"
+      ],
+      "example": "I'm bored, what should I do?",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "fact",
+      "name": "Random Fact API",
+      "description": "Get interesting random facts",
+      "url": "https://uselessfacts.jsph.pl/api/v2/facts/random",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "fact",
+        "interesting",
+        "trivia"
+      ],
+      "example": "Tell me an interesting fact",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "number",
+      "name": "Number Fact API",
+      "description": "Get interesting facts about numbers",
+      "url": "http://numbersapi.com/{number}?json",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "number",
+        "math fact"
+      ],
+      "example": "Tell me about the number 42",
+      "params": [
+        "number"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "cat_facts",
+      "name": "Cat Facts API",
+      "description": "Get random facts about cats",
+      "url": "https://catfact.ninja/fact",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "cat",
+        "kitten",
+        "feline"
+      ],
+      "example": "Tell me a cat fact",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "dictionary",
+      "name": "Dictionary API",
+      "description": "Get word definitions, synonyms, and more",
+      "url": "https://api.dictionaryapi.dev/api/v2/entries/en/{word}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "define",
+        "meaning of",
+        "what does",
+        "dictionary"
+      ],
+      "example": "Define the word 'serendipity'",
+      "params": [
+        "word"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "inspiration",
+      "name": "Inspirational Quote API",
+      "description": "Get motivational quotes",
+      "url": "https://api.quotable.io/quotes/random",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "inspiration",
+        "motivate",
+        "quote"
+      ],
+      "example": "I need some inspiration",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "advice",
+      "name": "Random Advice API",
+      "description": "Get helpful life advice",
+      "url": "https://api.adviceslip.com/advice",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "advice",
+        "help",
+        "suggestion"
+      ],
+      "example": "Give me some advice",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "affirmation",
+      "name": "Daily Affirmation API",
+      "description": "Get positive affirmations",
+      "url": "https://www.affirmations.dev/",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "affirmation",
+        "positive",
+        "encouragement"
+      ],
+      "example": "I need an affirmation",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "kanye",
+      "name": "Kanye Quote API",
+      "description": "Get Kanye West quotes",
+      "url": "https://api.kanye.rest/",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "kanye",
+        "yeezy"
+      ],
+      "example": "Give me a Kanye quote",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "dog",
+      "name": "Dog Picture API",
+      "description": "Get random dog pictures",
+      "url": "https://dog.ceo/api/breeds/image/random",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "dog",
+        "puppy",
+        "doggo"
+      ],
+      "example": "Show me a dog picture",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "nasa",
+      "name": "NASA API",
+      "description": "Get astronomy picture of the day and space data",
+      "url": "https://api.nasa.gov/planetary/apod",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "space",
+        "nasa",
+        "astronomy",
+        "stars",
+        "planets"
+      ],
+      "example": "Show me the astronomy picture of the day",
+      "params": [],
+      "auth_type": "query_param",
+      "auth_param": "api_key",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "news",
+      "name": "News API",
+      "description": "Get latest news headlines from various sources",
+      "url": "https://newsapi.org/v2/top-headlines",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "news",
+        "headlines",
+        "current events",
+        "what's happening"
+      ],
+      "example": "What's in the news today?",
+      "params": [
+        "country"
+      ],
+      "auth_type": "header",
+      "auth_param": "X-Api-Key",
+      "search_engine_id": "",
+      "category": "News & Media",
+      "active": true
+    },
+    {
+      "id": "google_custom_search",
+      "name": "Google Custom Search API",
+      "description": "Google search results via API (requires API key)",
+      "url": "https://www.googleapis.com/customsearch/v1?q={query}&cx={cx}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "google search",
+        "search for",
+        "google"
+      ],
+      "example": "Google search for best pizza in New York",
+      "params": [
+        "query",
+        "cx"
+      ],
+      "api_key": "",
+      "auth_type": "query",
+      "auth_param": "key",
+      "search_engine_id": "",
+      "category": "Search & Discovery",
+      "active": true
+    },
+    {
+      "id": "google_trends",
+      "name": "Google Trends (Unofficial)",
+      "description": "Get trending topics from Google Trends",
+      "url": "https://trends.google.com/trends/api/dailytrends?geo={country}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "trending",
+        "google trends",
+        "what's trending"
+      ],
+      "example": "What's trending in the US?",
+      "params": [
+        "country"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Search & Discovery",
+      "active": true
+    },
+    {
+      "id": "order_tracking",
+      "name": "Order Tracking API",
+      "description": "Track Samsung order status, collect order id, shipping zip code, and email.",
+      "url": "https://www.samsung.com/us/api/v4.1/orders/guest/_search",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "trigger_phrases": [
+        "track order",
+        "order status",
+        "where is my order"
+      ],
+      "example": "Track order SA538792893",
+      "params": [],
+      "body_template": {
+        "order_id": "{order_id}",
+        "email_id": "{email}",
+        "shipping_zip_code": "{zip_code}"
+      },
+      "params_required": [
+        "order_id",
+        "email",
+        "zip_code"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "exchangerate",
+      "name": "Exchange Rate API",
+      "description": "Get latest currency exchange rates",
+      "url": "https://api.exchangerate-api.com/v4/latest/{currency}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "exchange rate",
+        "currency",
+        "convert",
+        "how much is"
+      ],
+      "example": "What's the USD to EUR exchange rate?",
+      "params": [
+        "currency"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "custom",
+      "name": "Custom API",
+      "description": "Your custom API endpoint",
+      "url": "https://api.yourbusiness.com/v1/endpoint",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer YOUR_API_KEY"
+      },
+      "trigger_phrases": [],
+      "example": "Custom API call",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": false
+    },
+    {
+      "id": "agify",
+      "name": "Age Predictor API",
+      "description": "Predict age based on a name",
+      "url": "https://api.agify.io?name={name}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "guess age",
+        "how old",
+        "age of"
+      ],
+      "example": "Guess the age of someone named Michael",
+      "params": [
+        "name"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "genderize",
+      "name": "Gender Predictor API",
+      "description": "Predict gender based on a name",
+      "url": "https://api.genderize.io?name={name}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "guess gender",
+        "gender of"
+      ],
+      "example": "What gender is the name Alex?",
+      "params": [
+        "name"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "nationalize",
+      "name": "Nationality Predictor API",
+      "description": "Predict nationality based on a name",
+      "url": "https://api.nationalize.io?name={name}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "nationality",
+        "where from",
+        "origin of name"
+      ],
+      "example": "What nationality is the name Kumar?",
+      "params": [
+        "name"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "github_user",
+      "name": "GitHub User API",
+      "description": "Get GitHub user information",
+      "url": "https://api.github.com/users/{username}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "github",
+        "developer",
+        "programmer"
+      ],
+      "example": "Show me GitHub user torvalds",
+      "params": [
+        "username"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Development & Tech",
+      "active": true
+    },
+    {
+      "id": "universities",
+      "name": "Universities API",
+      "description": "Search for universities by country",
+      "url": "http://universities.hipolabs.com/search?country={country}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "universities",
+        "colleges",
+        "schools in"
+      ],
+      "example": "Show me universities in Canada",
+      "params": [
+        "country"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "cocktail",
+      "name": "Cocktail Recipe API",
+      "description": "Get random cocktail recipes",
+      "url": "https://www.thecocktaildb.com/api/json/v1/1/random.php",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "cocktail",
+        "drink recipe",
+        "mixed drink"
+      ],
+      "example": "Give me a cocktail recipe",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "meal",
+      "name": "Meal Recipe API",
+      "description": "Get random meal recipes",
+      "url": "https://www.themealdb.com/api/json/v1/1/random.php",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "meal",
+        "recipe",
+        "food",
+        "cooking"
+      ],
+      "example": "Give me a meal recipe",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "openlibrary",
+      "name": "Open Library Book API",
+      "description": "Search for book information",
+      "url": "https://openlibrary.org/search.json?q={query}&limit=5",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "book",
+        "author",
+        "novel",
+        "literature"
+      ],
+      "example": "Find books by Stephen King",
+      "params": [
+        "query"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "google_books",
+      "name": "Google Books API",
+      "description": "Search Google Books database",
+      "url": "https://www.googleapis.com/books/v1/volumes?q={query}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "google books",
+        "book search",
+        "find book"
+      ],
+      "example": "Search Google Books for Harry Potter",
+      "params": [
+        "query"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Search & Discovery",
+      "active": true
+    },
+    {
+      "id": "tvmaze",
+      "name": "TV Show Search API",
+      "description": "Search for TV show information",
+      "url": "https://api.tvmaze.com/search/shows?q={query}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "tv show",
+        "television",
+        "series"
+      ],
+      "example": "Find information about Breaking Bad",
+      "params": [
+        "query"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "lyrics",
+      "name": "Song Lyrics API",
+      "description": "Get song lyrics by artist and title",
+      "url": "https://api.lyrics.ovh/v1/{artist}/{title}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "lyrics",
+        "song words",
+        "song text"
+      ],
+      "example": "Get lyrics for 'Imagine' by John Lennon",
+      "params": [
+        "artist",
+        "title"
+      ],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "publicapis",
+      "name": "Public APIs Directory",
+      "description": "Get a list of public APIs",
+      "url": "https://api.publicapis.org/random",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "public api",
+        "api list",
+        "find api"
+      ],
+      "example": "Show me a random public API",
+      "params": [],
+      "auth_type": "none",
+      "auth_param": "Authorization",
+      "search_engine_id": "",
+      "category": "Uncategorized",
+      "active": true
+    },
+    {
+      "id": "youtube_search",
+      "name": "YouTube Search API",
+      "description": "Search YouTube videos (requires API key)",
+      "url": "https://www.googleapis.com/youtube/v3/search?part=snippet&q={query}&type=video&maxResults=5",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "youtube",
+        "video",
+        "watch"
+      ],
+      "example": "Search YouTube for cat videos",
+      "params": [
+        "query"
+      ],
+      "api_key": "",
+      "auth_type": "query",
+      "auth_param": "key",
+      "search_engine_id": "",
+      "category": "News & Media",
+      "active": false
+    },
+    {
+      "id": "google_maps_geocode",
+      "name": "Google Maps Geocoding API",
+      "description": "Convert addresses to coordinates (requires API key)",
+      "url": "https://maps.googleapis.com/maps/api/geocode/json?address={address}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "geocode",
+        "coordinates",
+        "location of"
+      ],
+      "example": "What are the coordinates of Times Square, New York?",
+      "params": [
+        "address"
+      ],
+      "api_key": "",
+      "auth_type": "query",
+      "auth_param": "key",
+      "search_engine_id": "",
+      "category": "Search & Discovery",
+      "active": false
+    },
+    {
+      "id": "google_translate",
+      "name": "Google Translate API",
+      "description": "Translate text between languages (requires API key)",
+      "url": "https://translation.googleapis.com/language/translate/v2?q={text}&target={target}&source={source}",
+      "method": "GET",
+      "headers": {},
+      "trigger_phrases": [
+        "translate",
+        "translation",
+        "how to say"
+      ],
+      "example": "Translate 'Hello' to Spanish",
+      "params": [
+        "text",
+        "target",
+        "source"
+      ],
+      "api_key": "",
+      "auth_type": "query",
+      "auth_param": "key",
+      "search_engine_id": "",
+      "category": "Language & Translation",
+      "active": false
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini API",
+      "description": "Google's AI model API (requires API key)",
+      "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "trigger_phrases": [
+        "gemini",
+        "google ai"
+      ],
+      "example": "Ask Gemini about quantum computing",
+      "params": [
+        "prompt"
+      ],
+      "body_template": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "text": "{prompt}"
+              }
+            ]
+          }
+        ]
+      },
+      "api_key": "",
+      "auth_type": "query",
+      "auth_param": "key",
+      "search_engine_id": "",
+      "category": "Search & Discovery",
+      "active": false
+    }
+  ]
+}

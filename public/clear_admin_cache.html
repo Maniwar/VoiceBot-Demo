@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Admin Cache</title>
+</head>
+<body>
+    <h1>Clearing Admin Panel Cache...</h1>
+    <script>
+        // Clear localStorage items related to API endpoints
+        localStorage.removeItem('apiEndpoints');
+        localStorage.removeItem('savedEndpoints');
+        localStorage.removeItem('customFunctions');
+        localStorage.removeItem('savedWorkflows');
+        
+        // Clear all API-related cache
+        for (let key in localStorage) {
+            if (key.includes('api') || key.includes('endpoint')) {
+                localStorage.removeItem(key);
+            }
+        }
+        
+        document.body.innerHTML = '<h1>✅ Cache Cleared!</h1><p>Now <a href="/admin.html">go to Admin Panel</a> to see all 12 APIs</p>';
+    </script>
+</body>
+</html>

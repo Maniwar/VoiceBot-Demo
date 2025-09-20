@@ -1,0 +1,507 @@
+{
+  "workflows": [
+    {
+      "id": "weather-check",
+      "name": "Weather Information",
+      "description": "Get current weather for any city",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "what's the weather",
+          "weather in",
+          "temperature in",
+          "how's the weather"
+        ]
+      },
+      "steps": [
+        {
+          "id": "extract-city",
+          "type": "llm_process",
+          "config": {
+            "prompt": "Extract the city name from: '{{input}}'. Return only the city name.",
+            "model": "gpt-3.5-turbo"
+          }
+        },
+        {
+          "id": "fetch-weather",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://wttr.in/{{city}}?format=j1",
+            "method": "GET",
+            "headers": {
+              "Accept": "application/json"
+            },
+            "response_path": "current_condition[0]"
+          }
+        },
+        {
+          "id": "format-response",
+          "type": "data_transform",
+          "config": {
+            "template": "The weather in {{city}} is {{temp_C}}°C ({{temp_F}}°F) with {{weatherDesc[0].value}}. Humidity is {{humidity}}%."
+          }
+        }
+      ]
+    },
+    {
+      "id": "joke-generator",
+      "name": "Joke Generator",
+      "description": "Get a random joke or programming joke",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "tell me a joke",
+          "make me laugh",
+          "funny joke",
+          "programming joke"
+        ]
+      },
+      "steps": [
+        {
+          "id": "determine-type",
+          "type": "condition_check",
+          "config": {
+            "condition": "{{input}} contains 'programming'",
+            "true_branch": "fetch-programming-joke",
+            "false_branch": "fetch-general-joke"
+          }
+        },
+        {
+          "id": "fetch-general-joke",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://official-joke-api.appspot.com/random_joke",
+            "method": "GET",
+            "response_format": "json"
+          }
+        },
+        {
+          "id": "fetch-programming-joke",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://v2.jokeapi.dev/joke/Programming?safe-mode",
+            "method": "GET",
+            "response_format": "json"
+          }
+        },
+        {
+          "id": "format-joke",
+          "type": "data_transform",
+          "config": {
+            "template": "{{setup}} {{delivery || punchline}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "news-headlines",
+      "name": "News Headlines",
+      "description": "Get latest news headlines from various sources",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "latest news",
+          "news headlines",
+          "what's happening",
+          "current events"
+        ]
+      },
+      "steps": [
+        {
+          "id": "fetch-news",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://api.currentsapi.services/v1/latest-news",
+            "method": "GET",
+            "params": {
+              "language": "en",
+              "apiKey": "demo"
+            },
+            "fallback": {
+              "endpoint": "https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty&limitToFirst=5",
+              "method": "GET"
+            }
+          }
+        },
+        {
+          "id": "format-headlines",
+          "type": "llm_process",
+          "config": {
+            "prompt": "Summarize these headlines in a conversational way: {{news_data}}",
+            "max_tokens": 150
+          }
+        }
+      ]
+    },
+    {
+      "id": "crypto-price",
+      "name": "Cryptocurrency Prices",
+      "description": "Get current cryptocurrency prices",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "bitcoin price",
+          "ethereum price",
+          "crypto prices",
+          "cryptocurrency"
+        ]
+      },
+      "steps": [
+        {
+          "id": "extract-crypto",
+          "type": "llm_process",
+          "config": {
+            "prompt": "Extract cryptocurrency symbol from '{{input}}'. Default to BTC if not specified. Return only the symbol (BTC, ETH, etc.)",
+            "model": "gpt-3.5-turbo"
+          }
+        },
+        {
+          "id": "fetch-price",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://api.coinbase.com/v2/exchange-rates?currency={{symbol}}",
+            "method": "GET",
+            "headers": {
+              "Accept": "application/json"
+            }
+          }
+        },
+        {
+          "id": "format-price",
+          "type": "data_transform",
+          "config": {
+            "template": "{{symbol}} is currently trading at ${{data.rates.USD}} USD"
+          }
+        }
+      ]
+    },
+    {
+      "id": "trivia-quiz",
+      "name": "Trivia Question",
+      "description": "Get random trivia questions",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "trivia question",
+          "quiz me",
+          "test my knowledge",
+          "random trivia"
+        ]
+      },
+      "steps": [
+        {
+          "id": "fetch-trivia",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://opentdb.com/api.php?amount=1&type=multiple",
+            "method": "GET",
+            "response_format": "json"
+          }
+        },
+        {
+          "id": "format-question",
+          "type": "data_transform",
+          "config": {
+            "template": "Category: {{results[0].category}}\nQuestion: {{results[0].question}}\nDifficulty: {{results[0].difficulty}}"
+          }
+        },
+        {
+          "id": "wait-for-answer",
+          "type": "wait_timer",
+          "config": {
+            "duration": 5,
+            "message": "Think about your answer..."
+          }
+        },
+        {
+          "id": "reveal-answer",
+          "type": "data_transform",
+          "config": {
+            "template": "The correct answer is: {{results[0].correct_answer}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ip-location",
+      "name": "IP and Location Info",
+      "description": "Get user's IP address and location information",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "my ip address",
+          "where am i",
+          "my location",
+          "ip info"
+        ]
+      },
+      "steps": [
+        {
+          "id": "fetch-ip",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://api.ipify.org?format=json",
+            "method": "GET"
+          }
+        },
+        {
+          "id": "fetch-location",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://ipapi.co/{{ip}}/json/",
+            "method": "GET",
+            "headers": {
+              "User-Agent": "VoiceBot/1.0"
+            }
+          }
+        },
+        {
+          "id": "format-info",
+          "type": "data_transform",
+          "config": {
+            "template": "Your IP is {{ip}}. You're located in {{city}}, {{region}}, {{country_name}}."
+          }
+        }
+      ]
+    },
+    {
+      "id": "dictionary-lookup",
+      "name": "Dictionary Definition",
+      "description": "Look up word definitions",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "define",
+          "definition of",
+          "what does * mean",
+          "meaning of"
+        ]
+      },
+      "steps": [
+        {
+          "id": "extract-word",
+          "type": "llm_process",
+          "config": {
+            "prompt": "Extract the word to define from: '{{input}}'. Return only the word.",
+            "model": "gpt-3.5-turbo"
+          }
+        },
+        {
+          "id": "fetch-definition",
+          "type": "api_call",
+          "config": {
+            "endpoint": "https://api.dictionaryapi.dev/api/v2/entries/en/{{word}}",
+            "method": "GET",
+            "error_handler": "word-not-found"
+          }
+        },
+        {
+          "id": "format-definition",
+          "type": "data_transform",
+          "config": {
+            "template": "{{word}}: {{[0].meanings[0].definitions[0].definition}}"
+          }
+        },
+        {
+          "id": "word-not-found",
+          "type": "data_transform",
+          "config": {
+            "template": "I couldn't find a definition for '{{word}}'. Please check the spelling."
+          }
+        }
+      ]
+    },
+    {
+      "id": "space-facts",
+      "name": "Space Information",
+      "description": "Get information about space and ISS",
+      "trigger": {
+        "type": "voice_command",
+        "patterns": [
+          "space station",
+          "astronauts in space",
+          "ISS location",
+          "space facts"
+        ]
+      },
+      "steps": [
+        {
+          "id": "fetch-astronauts",
+          "type": "api_call",
+          "config": {
+            "endpoint": "http://api.open-notify.org/astros.json",
+            "method": "GET"
+          }
+        },
+        {
+          "id": "fetch-iss-location",
+          "type": "api_call",
+          "config": {
+            "endpoint": "http://api.open-notify.org/iss-now.json",
+            "method": "GET"
+          }
+        },
+        {
+          "id": "format-space-info",
+          "type": "data_transform",
+          "config": {
+            "template": "There are currently {{number}} people in space. The ISS is at latitude {{iss_position.latitude}} and longitude {{iss_position.longitude}}."
+          }
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "search_knowledge_base",
+      "description": "Search uploaded documents for relevant information",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "execute_workflow",
+      "description": "Execute a predefined workflow",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "workflow_id": {
+            "type": "string",
+            "description": "ID of the workflow to execute"
+          },
+          "input": {
+            "type": "string",
+            "description": "Input data for the workflow"
+          }
+        },
+        "required": ["workflow_id"]
+      }
+    },
+    {
+      "name": "get_weather",
+      "description": "Get current weather for a location",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "City name or location"
+          }
+        },
+        "required": ["location"]
+      }
+    },
+    {
+      "name": "tell_joke",
+      "description": "Get a random joke",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["general", "programming", "dad"],
+            "description": "Type of joke"
+          }
+        }
+      }
+    },
+    {
+      "name": "get_news",
+      "description": "Get latest news headlines",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["general", "technology", "business", "sports"],
+            "description": "News category"
+          }
+        }
+      }
+    }
+  ],
+  "api_endpoints": [
+    {
+      "id": "weather-api",
+      "name": "Weather API (wttr.in)",
+      "base_url": "https://wttr.in",
+      "description": "Free weather API with no key required",
+      "auth_type": "none",
+      "rate_limit": "1000/hour",
+      "endpoints": [
+        {
+          "path": "/{city}?format=j1",
+          "method": "GET",
+          "description": "Get weather for a city in JSON format"
+        }
+      ]
+    },
+    {
+      "id": "joke-api",
+      "name": "JokeAPI",
+      "base_url": "https://v2.jokeapi.dev",
+      "description": "Free joke API with categories",
+      "auth_type": "none",
+      "rate_limit": "120/minute",
+      "endpoints": [
+        {
+          "path": "/joke/{category}",
+          "method": "GET",
+          "description": "Get jokes by category"
+        }
+      ]
+    },
+    {
+      "id": "trivia-api",
+      "name": "Open Trivia Database",
+      "base_url": "https://opentdb.com",
+      "description": "Free trivia questions API",
+      "auth_type": "none",
+      "rate_limit": "unlimited",
+      "endpoints": [
+        {
+          "path": "/api.php",
+          "method": "GET",
+          "description": "Get trivia questions"
+        }
+      ]
+    },
+    {
+      "id": "ipify-api",
+      "name": "IPify",
+      "base_url": "https://api.ipify.org",
+      "description": "Get public IP address",
+      "auth_type": "none",
+      "rate_limit": "unlimited",
+      "endpoints": [
+        {
+          "path": "/?format=json",
+          "method": "GET",
+          "description": "Get your public IP"
+        }
+      ]
+    },
+    {
+      "id": "dictionary-api",
+      "name": "Free Dictionary API",
+      "base_url": "https://api.dictionaryapi.dev",
+      "description": "Word definitions and meanings",
+      "auth_type": "none",
+      "rate_limit": "unlimited",
+      "endpoints": [
+        {
+          "path": "/api/v2/entries/en/{word}",
+          "method": "GET",
+          "description": "Get word definition"
+        }
+      ]
+    }
+  ]
+}

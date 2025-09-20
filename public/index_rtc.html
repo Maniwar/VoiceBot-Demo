@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultra-Low Latency Voice Bot - OpenAI Realtime</title>
+    <script>
+        // Save that we're in RTC mode
+        localStorage.setItem('lastUsedMode', 'rtc');
+        
+        // Check if should redirect to standard based on preference
+        const preferredMode = localStorage.getItem('preferredMode');
+        const autoRedirect = localStorage.getItem('autoRedirectMode') === 'true';
+        if (preferredMode === 'standard' && autoRedirect && !window.location.search.includes('force')) {
+            window.location.href = '/index.html';
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 100%;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.95;
+            font-size: 1em;
+        }
+        
+        .latency-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .status-bar {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #dc3545;
+            transition: all 0.3s;
+        }
+        
+        .status-dot.connected {
+            background: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+        
+        .main-content {
+            padding: 40px 30px;
+        }
+        
+        .knowledge-base-section {
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .knowledge-base-section h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .dropzone {
+            border: 2px dashed #0066ff;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+        
+        .dropzone:hover {
+            background: rgba(0, 102, 255, 0.05);
+            border-color: #0052cc;
+        }
+        
+        .dropzone.dragover {
+            background: rgba(0, 102, 255, 0.1);
+            border-color: #0052cc;
+            transform: scale(1.02);
+        }
+        
+        .file-list {
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        
+        .file-item .file-name {
+            flex: 1;
+            margin-left: 8px;
+        }
+        
+        .file-item .remove-btn {
+            color: #ff4444;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        
+        .file-item .remove-btn:hover {
+            background: rgba(255, 68, 68, 0.1);
+        }
+        
+        .chunk-count {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
+        
+        .transcript-area {
+            background: #f8f9fa;
+            border-radius: 16px;
+            padding: 20px;
+            min-height: 200px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 30px;
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            animation: slideIn 0.3s;
+        }
+        
+        @keyframes slideIn {
+            from { 
+                opacity: 0; 
+                transform: translateY(10px);
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0);
+            }
+        }
+        
+        .message.user {
+            background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+            color: white;
+            margin-left: 20%;
+            text-align: right;
+        }
+        
+        .message.assistant {
+            background: white;
+            margin-right: 20%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .message.system {
+            background: rgba(0, 102, 255, 0.1);
+            color: #0066ff;
+            text-align: center;
+            font-size: 0.9em;
+            font-style: italic;
+        }
+        
+        .message.streaming .message-text::after {
+            content: '▊';
+            animation: blink 1s infinite;
+        }
+        
+        .message.partial {
+            opacity: 0.8;
+            font-style: italic;
+        }
+        
+        .message.partial .message-label {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        .message-label {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        
+        .voice-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .record-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            color: white;
+            font-size: 48px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 30px rgba(0, 102, 255, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .record-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            transform: translate(-50%, -50%) scale(0);
+            transition: transform 0.5s;
+        }
+        
+        .record-button:hover::before {
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .record-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(0, 102, 255, 0.4);
+        }
+        
+        .record-button:active {
+            transform: scale(0.95);
+        }
+        
+        .record-button.recording {
+            background: linear-gradient(135deg, #ff0066 0%, #ff3366 100%);
+            animation: recordPulse 1s infinite;
+        }
+        
+        @keyframes recordPulse {
+            0%, 100% { 
+                box-shadow: 0 10px 30px rgba(255, 0, 102, 0.4);
+            }
+            50% { 
+                box-shadow: 0 10px 50px rgba(255, 0, 102, 0.6);
+            }
+        }
+        
+        .info-text {
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+        
+        .latency-display {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.85em;
+            color: #999;
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(135deg, #0066ff 0%, #00d4ff 100%);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: none;
+        }
+        
+        .message-text {
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+        
+        #latencyDisplay {
+            font-weight: 600;
+            color: #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="latency-badge">⚡ <100ms</div>
+            <h1>🎤 Ultra-Low Latency Voice Bot</h1>
+            <p>Powered by OpenAI Realtime API</p>
+            <div style="position: absolute; top: 20px; left: 20px; z-index: 1000; display: flex; gap: 10px;">
+                <a href="/index.html?force=true" onclick="localStorage.removeItem('preferredMode'); localStorage.removeItem('autoRedirectMode');" style="color: white; background: rgba(102,126,234,0.2); border: 1px solid rgba(102,126,234,0.3); padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block;" onmouseover="this.style.background='rgba(102,126,234,0.3)'" onmouseout="this.style.background='rgba(102,126,234,0.2)'">🎤 Standard Mode</a>
+                <a href="/mode-selector.html" onclick="localStorage.removeItem('preferredMode'); localStorage.removeItem('autoRedirectMode');" style="color: white; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🔄 Mode Selector</a>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-indicator">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Connecting...</span>
+            </div>
+            <div>RTC Mode</div>
+        </div>
+        
+        <div class="main-content">
+            <!-- Knowledge Base Upload Section -->
+            <div class="knowledge-base-section">
+                <h3>📚 Knowledge Base</h3>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" multiple accept=".pdf,.txt,.json,.md,.csv,.xml,.html,.doc,.docx,.rtf,.log,.jpg,.jpeg,.png,.gif,.bmp,.webp" style="display: none;">
+                    <div class="dropzone" id="dropzone">
+                        <p>📁 Drop files here or click to upload</p>
+                        <small>Supports PDF, TXT, JSON, MD, Images (JPG, PNG, etc.)</small>
+                    </div>
+                    <div class="file-list" id="fileList"></div>
+                    <div class="chunk-count">
+                        Chunks: <span id="chunkCount">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="transcript-area" id="transcriptArea">
+                <div class="message system">
+                    <div class="message-label">System</div>
+                    <div>🚀 Initializing ultra-low latency connection...</div>
+                </div>
+            </div>
+            
+            <div class="voice-controls">
+                <button class="record-button" id="recordButton" title="Hold to talk">
+                    🎤
+                </button>
+            </div>
+            
+            <div class="info-text">
+                Click or hold the microphone to talk
+            </div>
+            
+            
+            <!-- Removed speed slider as it affects pitch, not just tempo -->
+            
+            <div class="latency-display">
+                Latency: <span id="latencyDisplay">-- ms</span>
+            </div>
+        </div>
+    </div>
+    
+    <script src="rtc.js"></script>
+    <script src="voice-settings.js"></script>
+</body>
+</html>

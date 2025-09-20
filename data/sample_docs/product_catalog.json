@@ -1,0 +1,103 @@
+{
+  "products": [
+    {
+      "id": "PRD001",
+      "name": "Smart Home Hub",
+      "category": "IoT Devices",
+      "price": 149.99,
+      "description": "Central control hub for all your smart home devices. Compatible with Alexa, Google Home, and HomeKit.",
+      "features": [
+        "Voice control",
+        "Mobile app control",
+        "Automation routines",
+        "Energy monitoring"
+      ],
+      "in_stock": true,
+      "warranty": "2 years"
+    },
+    {
+      "id": "PRD002",
+      "name": "Wireless Security Camera",
+      "category": "Security",
+      "price": 89.99,
+      "description": "1080p HD wireless security camera with night vision and motion detection.",
+      "features": [
+        "1080p HD video",
+        "Night vision up to 30ft",
+        "Two-way audio",
+        "Cloud storage included"
+      ],
+      "in_stock": true,
+      "warranty": "1 year"
+    },
+    {
+      "id": "PRD003",
+      "name": "Smart Thermostat",
+      "category": "Climate Control",
+      "price": 199.99,
+      "description": "Learning thermostat that adapts to your schedule and saves energy.",
+      "features": [
+        "Auto-scheduling",
+        "Remote control",
+        "Energy reports",
+        "Works with most HVAC systems"
+      ],
+      "in_stock": false,
+      "expected_restock": "2024-02-15",
+      "warranty": "3 years"
+    },
+    {
+      "id": "PRD004",
+      "name": "Smart Door Lock",
+      "category": "Security",
+      "price": 279.99,
+      "description": "Keyless entry smart lock with fingerprint recognition and mobile app control.",
+      "features": [
+        "Fingerprint recognition",
+        "Keypad entry",
+        "Mobile app control",
+        "Guest access codes"
+      ],
+      "in_stock": true,
+      "warranty": "2 years"
+    },
+    {
+      "id": "PRD005",
+      "name": "Robot Vacuum",
+      "category": "Home Automation",
+      "price": 399.99,
+      "description": "AI-powered robot vacuum with mapping and self-emptying base.",
+      "features": [
+        "LiDAR navigation",
+        "Self-emptying base",
+        "Mopping function",
+        "Schedule cleaning"
+      ],
+      "in_stock": true,
+      "warranty": "1 year"
+    }
+  ],
+  "categories": [
+    "IoT Devices",
+    "Security",
+    "Climate Control",
+    "Home Automation",
+    "Lighting",
+    "Entertainment"
+  ],
+  "shipping_info": {
+    "standard": {
+      "cost": 9.99,
+      "days": "5-7 business days"
+    },
+    "express": {
+      "cost": 19.99,
+      "days": "2-3 business days"
+    },
+    "overnight": {
+      "cost": 39.99,
+      "days": "Next business day"
+    },
+    "free_shipping_threshold": 100
+  }
+}
