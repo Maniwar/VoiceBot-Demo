@@ -941,9 +941,27 @@
         import('/sdk/openai-realtime-agents.mjs').then(SDK => {
             const { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool } = SDK;
             
-            // Helper function to wrap tools for SDK compatibility
+            // Helper function to wrap tools for SDK compatibility and track results
             function wrapTool(toolDefinition) {
                 if (!tool) return toolDefinition; // Fallback if SDK doesn't provide tool function
+                
+                // Wrap the execute function to capture results
+                const originalExecute = toolDefinition.execute;
+                toolDefinition.execute = async function(args) {
+                    const result = await originalExecute(args);
+                    
+                    // Add tool result directly to UI if it contains markdown
+                    if (result && typeof result === 'string' && 
+                        (result.includes('#') || result.includes('![') || result.includes('[') || result.includes('**'))) {
+                        // Add the markdown result directly to conversation
+                        setTimeout(() => {
+                            addMessage('assistant', result);
+                        }, 100);
+                    }
+                    
+                    return result;
+                };
+                
                 return tool(toolDefinition);
             }
             
