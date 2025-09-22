@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 
@@ -7,17 +8,36 @@ class ConfigManager {
         this.configPath = path.join(process.cwd(), 'config');
         this.settingsFile = path.join(this.configPath, 'settings.json');
         this.apiKeysFile = path.join(this.configPath, '.api-keys.json');
-        this.encryptionKey = process.env.CONFIG_ENCRYPTION_KEY || this.generateEncryptionKey();
+        this.encryptionKeyFile = path.join(this.configPath, '.encryption-key');
+        this.encryptionKey = this.loadOrCreateEncryptionKey();
         this.algorithm = 'aes-256-gcm';
         this.settings = null;
         this.apiKeys = null;
     }
 
-    generateEncryptionKey() {
-        // Generate a key if not provided
-        const key = crypto.randomBytes(32).toString('hex');
-        console.warn('⚠️ Using generated encryption key. Set CONFIG_ENCRYPTION_KEY in .env for production');
-        return key;
+    loadOrCreateEncryptionKey() {
+        // First try environment variable
+        if (process.env.CONFIG_ENCRYPTION_KEY) {
+            return process.env.CONFIG_ENCRYPTION_KEY;
+        }
+        
+        // Try to load from file
+        try {
+            const key = fsSync.readFileSync(this.encryptionKeyFile, 'utf8');
+            return key.trim();
+        } catch (error) {
+            // Generate and save a new key
+            const key = crypto.randomBytes(32).toString('hex');
+            try {
+                // Create config directory if it doesn't exist
+                fsSync.mkdirSync(this.configPath, { recursive: true });
+                fsSync.writeFileSync(this.encryptionKeyFile, key);
+                console.log('📝 Generated new encryption key and saved to config/.encryption-key');
+            } catch (saveError) {
+                console.error('Error saving encryption key:', saveError);
+            }
+            return key;
+        }
     }
 
     async initialize() {
@@ -77,11 +97,12 @@ class ConfigManager {
         } catch (error) {
             // Default settings if file doesn't exist
             this.settings = {
-                model: 'gpt-4o-realtime-preview',
+                model: 'gpt-realtime',
                 voice: 'shimmer',
                 temperature: 0.8,
                 instructions: `You are an incredibly expressive and enthusiastic voice assistant with a vibrant personality! 
-                    Speak with natural emotion, varying your tone, pace, and inflection to match the context.`,
+                    Speak with natural emotion, varying your tone, pace, and inflection to match the context.
+                    CRITICAL: Always respond in ENGLISH only, regardless of the language spoken to you.`,
                 greeting: 'Hello! I\'m your AI assistant. How can I help you today?',
                 inputFormat: 'pcm16',
                 outputFormat: 'pcm16',
@@ -92,10 +113,27 @@ class ConfigManager {
                 tools: {
                     ragEnabled: true,
                     webSearchEnabled: true,
-                    flightSearchEnabled: true,
-                    weatherEnabled: true
+                    flightSearchEnabled: false,
+                    weatherEnabled: true,
+                    cameraEnabled: true
                 },
-                maxTools: 3,
+                toolInstructions: {
+                    rag: `When users ask ANY question about data, documents, or information, IMMEDIATELY use the search_documents tool. 
+                          DO NOT ask the user what to search for - extract keywords from their question automatically.
+                          For example: "What's the ROI?" -> search for "ROI return investment profit"
+                          "Tell me about the project" -> search for "project overview summary description"
+                          Always cite which document the information came from.`,
+                    webSearch: `Use the search_google tool when users ask for current information, news, or web content.
+                               Format results nicely with images when available.
+                               Include relevant links and show images inline using markdown.`,
+                    weather: `Use the get_weather tool for weather inquiries. 
+                             This is a free API that doesn't require configuration.
+                             Provide both current weather and forecast when asked.`,
+                    camera: `When the user shares an image or asks you to look at something, analyze it carefully.
+                            Describe what you see in detail and answer any questions about the image.`,
+                    flight: `Use flight search for travel queries. Note: Requires Amadeus API credentials.`
+                },
+                maxTools: 5,
                 maxTokens: 4096,
                 sessionTimeout: 300,
                 contextWindow: 'medium',
@@ -121,20 +159,30 @@ class ConfigManager {
     async loadApiKeys() {
         try {
             const data = await fs.readFile(this.apiKeysFile, 'utf8');
-            const encrypted = JSON.parse(data);
+            const stored = JSON.parse(data);
             
-            // Decrypt all API keys
+            // Process all API keys
             this.apiKeys = {};
-            for (const [key, value] of Object.entries(encrypted)) {
-                try {
-                    if (value && typeof value === 'object' && value.encrypted) {
-                        this.apiKeys[key] = this.decrypt(value);
-                    } else {
-                        this.apiKeys[key] = value; // Not encrypted (legacy)
+            for (const [apiName, apiData] of Object.entries(stored)) {
+                if (apiData && typeof apiData === 'object') {
+                    this.apiKeys[apiName] = {};
+                    for (const [field, value] of Object.entries(apiData)) {
+                        // Check if field is encrypted
+                        if (value && typeof value === 'object' && value.encrypted) {
+                            try {
+                                // Decrypt the field
+                                this.apiKeys[apiName][field] = this.decrypt(value);
+                            } catch (decryptError) {
+                                console.error(`Error decrypting ${apiName}.${field}:`, decryptError.message);
+                                this.apiKeys[apiName][field] = '';
+                            }
+                        } else {
+                            // Not encrypted or plain value
+                            this.apiKeys[apiName][field] = value;
+                        }
                     }
-                } catch (decryptError) {
-                    console.error(`Error decrypting ${key}:`, decryptError.message);
-                    this.apiKeys[key] = null;
+                } else {
+                    this.apiKeys[apiName] = apiData;
                 }
             }
         } catch (error) {

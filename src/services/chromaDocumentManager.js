@@ -5,22 +5,57 @@ import Papa from 'papaparse';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import xlsx from 'xlsx';
+import { ChromaClient } from 'chromadb';
+import { OpenAIEmbeddingFunction } from 'chromadb';
 
-class DocumentManager {
+class ChromaDocumentManager {
     constructor() {
         this.documentsPath = path.join(process.cwd(), 'documents');
         this.metadataFile = path.join(this.documentsPath, 'metadata.json');
         this.metadata = {};
-        this.embeddings = new Map();
+        this.client = null;
+        this.collection = null;
+        this.embeddingFunction = null;
     }
 
     async initialize() {
-        // Create documents directory if it doesn't exist
         try {
+            // Create documents directory if it doesn't exist
             await fs.mkdir(this.documentsPath, { recursive: true });
+            
+            // Initialize ChromaDB client
+            this.client = new ChromaClient({
+                path: path.join(process.cwd(), 'chroma_db')
+            });
+            
+            // Initialize OpenAI embedding function
+            this.embeddingFunction = new OpenAIEmbeddingFunction({
+                openai_api_key: process.env.OPENAI_API_KEY,
+                openai_model: "text-embedding-3-small" // Using newer, better model
+            });
+            
+            // Create or get collection
+            try {
+                this.collection = await this.client.getCollection({
+                    name: "documents",
+                    embeddingFunction: this.embeddingFunction
+                });
+                console.log('Using existing ChromaDB collection');
+            } catch (error) {
+                this.collection = await this.client.createCollection({
+                    name: "documents",
+                    embeddingFunction: this.embeddingFunction,
+                    metadata: { 
+                        "description": "Document embeddings for RAG",
+                        "hnsw:space": "cosine"
+                    }
+                });
+                console.log('Created new ChromaDB collection');
+            }
+            
             await this.loadMetadata();
         } catch (error) {
-            console.error('Error initializing document manager:', error);
+            console.error('Error initializing ChromaDB document manager:', error);
         }
     }
 
@@ -162,8 +197,34 @@ class DocumentManager {
                     chunks = [content];
             }
             
-            // Generate embeddings for each chunk
-            const embeddings = await this.generateEmbeddings(chunks);
+            // Add chunks to ChromaDB
+            const chunkIds = [];
+            const chunkTexts = [];
+            const chunkMetadatas = [];
+            
+            for (let i = 0; i < chunks.length; i++) {
+                const chunkId = `${docId}_chunk_${i}`;
+                chunkIds.push(chunkId);
+                chunkTexts.push(chunks[i]);
+                chunkMetadatas.push({
+                    document_id: docId,
+                    document_name: originalName,
+                    chunk_index: i,
+                    total_chunks: chunks.length,
+                    file_type: fileExt,
+                    upload_date: new Date().toISOString()
+                });
+            }
+            
+            // Add to ChromaDB collection
+            if (chunkTexts.length > 0) {
+                await this.collection.add({
+                    ids: chunkIds,
+                    documents: chunkTexts,
+                    metadatas: chunkMetadatas
+                });
+                console.log(`Added ${chunkTexts.length} chunks to ChromaDB for document ${originalName}`);
+            }
             
             // Store document metadata
             this.metadata.documents[docId] = {
@@ -173,8 +234,6 @@ class DocumentManager {
                 fileExt,
                 filePath: destPath,
                 chunks: chunks.length,
-                content: chunks, // Store chunks directly for simple search
-                embeddings: embeddings,
                 uploadedAt: new Date().toISOString(),
                 size: (await fs.stat(destPath)).size,
                 lastAccessed: null,
@@ -190,7 +249,7 @@ class DocumentManager {
                 documentId: docId,
                 fileName: originalName,
                 chunks: chunks.length,
-                message: `Document processed successfully`
+                message: `Document processed and indexed in ChromaDB`
             };
             
         } catch (error) {
@@ -207,8 +266,8 @@ class DocumentManager {
         }
     }
 
-    // Chunk text for better retrieval - increased size for more context
-    chunkText(text, maxChunkSize = 4000, overlap = 800) {
+    // Enhanced chunking for better context
+    chunkText(text, maxChunkSize = 3000, overlap = 500) {
         const chunks = [];
         const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
         let currentChunk = '';
@@ -241,34 +300,6 @@ class DocumentManager {
             }
         }
         return chunks.length > 0 ? chunks : [text];
-    }
-
-    // Generate embeddings using OpenAI API
-    async generateEmbeddings(texts) {
-        try {
-            const response = await fetch('https://api.openai.com/v1/embeddings', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: 'text-embedding-ada-002',
-                    input: texts
-                })
-            });
-            
-            if (!response.ok) {
-                console.error('Embedding generation failed');
-                return texts.map(() => []); // Return empty embeddings as fallback
-            }
-            
-            const data = await response.json();
-            return data.data.map(d => d.embedding);
-        } catch (error) {
-            console.error('Embedding error:', error);
-            return texts.map(() => []); // Return empty embeddings as fallback
-        }
     }
 
     // Process image with Vision API
@@ -315,7 +346,7 @@ class DocumentManager {
                             }
                         ]
                     }],
-                    max_tokens: 1500  // Increased for more detailed descriptions
+                    max_tokens: 1500
                 })
             });
             
@@ -330,181 +361,77 @@ class DocumentManager {
         return `Image: ${fileName} (analysis not available)`;
     }
 
-    // Search documents - implementing hybrid search with better ranking
-    async searchDocuments(query, limit = 20) {
+    // Search documents using ChromaDB's built-in vector search
+    async searchDocuments(query, limit = 15) {
         try {
-            // Query rewriting for better search (following Azure best practices)
-            const searchQuery = this.rewriteQuery(query);
-            
-            // Generate embedding for query
-            const queryEmbedding = await this.generateEmbeddings([searchQuery]);
-            const qEmbed = queryEmbedding[0];
-            
-            const results = [];
-            
-            for (const [docId, doc] of Object.entries(this.metadata.documents)) {
-                // Calculate relevance scores for each chunk
-                const chunkScores = doc.content.map((chunk, idx) => {
-                    // Hybrid scoring: combine vector similarity and keyword matching
-                    let vectorScore = 0;
-                    let keywordScore = 0;
-                    let semanticBoost = 0;
-                    
-                    // Vector similarity (if embeddings available)
-                    if (doc.embeddings && doc.embeddings[idx] && qEmbed.length > 0) {
-                        vectorScore = this.cosineSimilarity(qEmbed, doc.embeddings[idx]);
-                    }
-                    
-                    // Keyword matching with TF-IDF style scoring
-                    const queryWords = searchQuery.toLowerCase().split(/\s+/);
-                    const chunkLower = chunk.toLowerCase();
-                    const chunkWords = chunkLower.split(/\s+/);
-                    
-                    // Calculate term frequency and match score
-                    for (const queryWord of queryWords) {
-                        if (chunkLower.includes(queryWord)) {
-                            // Count occurrences (term frequency)
-                            const occurrences = (chunkLower.match(new RegExp(queryWord, 'g')) || []).length;
-                            keywordScore += Math.min(occurrences * 0.1, 0.3); // Cap contribution per word
-                            
-                            // Boost for exact phrase matches
-                            if (chunk.toLowerCase().includes(query.toLowerCase())) {
-                                semanticBoost = 0.3;
-                            }
-                        }
-                    }
-                    
-                    // Normalize keyword score
-                    keywordScore = Math.min(keywordScore / queryWords.length, 1);
-                    
-                    // Hybrid score with weights (following Azure's approach)
-                    // 60% vector, 30% keyword, 10% semantic boost
-                    const hybridScore = (vectorScore * 0.6) + (keywordScore * 0.3) + semanticBoost;
-                    
-                    return {
-                        documentId: docId,
-                        fileName: doc.originalName,
-                        chunk,
-                        chunkIndex: idx,
-                        vectorScore,
-                        keywordScore,
-                        hybridScore,
-                        score: hybridScore, // Use hybrid score as main score
-                        metadata: {
-                            uploadedAt: doc.uploadedAt,
-                            fileType: doc.fileExt,
-                            accessCount: doc.accessCount
-                        }
-                    };
-                });
-                
-                // Get top 5 chunks from each document for more context
-                const topChunks = chunkScores
-                    .filter(chunk => chunk.score > 0.05) // Lower threshold for more results
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 5);
-                
-                results.push(...topChunks);
+            if (!this.collection) {
+                throw new Error('ChromaDB collection not initialized');
             }
             
-            // Sort by relevance with diversity (don't return all chunks from same doc)
-            results.sort((a, b) => b.score - a.score);
+            // Query ChromaDB
+            const results = await this.collection.query({
+                queryTexts: [query],
+                nResults: limit,
+                include: ["documents", "metadatas", "distances"]
+            });
             
-            // Ensure diversity - max 3 chunks from same document
-            const diverseResults = [];
-            const docCounts = {};
+            if (!results || !results.documents || results.documents[0].length === 0) {
+                return {
+                    success: true,
+                    query: query,
+                    resultsCount: 0,
+                    results: []
+                };
+            }
             
-            for (const result of results) {
-                const docId = result.documentId;
-                if (!docCounts[docId]) docCounts[docId] = 0;
+            // Format results
+            const formattedResults = [];
+            const documents = results.documents[0];
+            const metadatas = results.metadatas[0];
+            const distances = results.distances[0];
+            
+            for (let i = 0; i < documents.length; i++) {
+                // Convert distance to similarity score (1 - distance for cosine)
+                const similarityScore = 1 - (distances[i] || 0);
                 
-                if (docCounts[docId] < 5) {
-                    diverseResults.push(result);
-                    docCounts[docId]++;
-                    if (diverseResults.length >= limit) break;
+                formattedResults.push({
+                    fileName: metadatas[i].document_name || 'Unknown',
+                    content: documents[i],
+                    relevanceScore: similarityScore,
+                    vectorScore: similarityScore,
+                    documentId: metadatas[i].document_id,
+                    chunkIndex: metadatas[i].chunk_index,
+                    metadata: {
+                        uploadedAt: metadatas[i].upload_date,
+                        fileType: metadatas[i].file_type
+                    }
+                });
+                
+                // Update access metadata
+                if (metadatas[i].document_id && this.metadata.documents[metadatas[i].document_id]) {
+                    const doc = this.metadata.documents[metadatas[i].document_id];
+                    doc.lastAccessed = new Date().toISOString();
+                    doc.accessCount = (doc.accessCount || 0) + 1;
                 }
             }
             
-            const topResults = diverseResults;
-            
-            // Update access metadata
-            for (const result of topResults) {
-                const doc = this.metadata.documents[result.documentId];
-                doc.lastAccessed = new Date().toISOString();
-                doc.accessCount++;
-            }
             await this.saveMetadata();
             
             return {
                 success: true,
                 query: query,
-                searchQuery: searchQuery, // Include rewritten query
-                resultsCount: topResults.length,
-                results: topResults.map(r => ({
-                    fileName: r.fileName,
-                    content: r.chunk,
-                    relevanceScore: r.score,
-                    vectorScore: r.vectorScore,
-                    keywordScore: r.keywordScore,
-                    documentId: r.documentId,
-                    metadata: r.metadata
-                }))
+                resultsCount: formattedResults.length,
+                results: formattedResults
             };
             
         } catch (error) {
-            console.error('Search error:', error);
+            console.error('ChromaDB search error:', error);
             return {
                 success: false,
                 error: error.message,
                 results: []
             };
         }
-    }
-
-    // Query rewriting for better search (following Azure best practices)
-    rewriteQuery(query) {
-        // Expand abbreviations and add synonyms
-        let rewritten = query;
-        
-        // Common expansions
-        const expansions = {
-            'roi': 'return on investment ROI',
-            'api': 'application programming interface API',
-            'ai': 'artificial intelligence AI',
-            'ml': 'machine learning ML',
-            'rag': 'retrieval augmented generation RAG',
-            'llm': 'large language model LLM',
-            'ui': 'user interface UI',
-            'ux': 'user experience UX'
-        };
-        
-        // Replace abbreviations with expanded forms
-        for (const [abbr, expansion] of Object.entries(expansions)) {
-            const regex = new RegExp(`\\b${abbr}\\b`, 'gi');
-            if (regex.test(rewritten)) {
-                rewritten = rewritten.replace(regex, expansion);
-            }
-        }
-        
-        return rewritten;
-    }
-    
-    // Calculate cosine similarity between two vectors
-    cosineSimilarity(vec1, vec2) {
-        if (!vec1 || !vec2 || vec1.length !== vec2.length) return 0;
-        
-        let dotProduct = 0;
-        let norm1 = 0;
-        let norm2 = 0;
-        
-        for (let i = 0; i < vec1.length; i++) {
-            dotProduct += vec1[i] * vec2[i];
-            norm1 += vec1[i] * vec1[i];
-            norm2 += vec2[i] * vec2[i];
-        }
-        
-        const denominator = Math.sqrt(norm1) * Math.sqrt(norm2);
-        return denominator === 0 ? 0 : dotProduct / denominator;
     }
 
     // Get all documents
@@ -529,6 +456,21 @@ class DocumentManager {
         }
         
         try {
+            // Delete from ChromaDB
+            if (this.collection) {
+                // Get all chunk IDs for this document
+                const chunkIds = [];
+                for (let i = 0; i < doc.chunks; i++) {
+                    chunkIds.push(`${documentId}_chunk_${i}`);
+                }
+                
+                if (chunkIds.length > 0) {
+                    await this.collection.delete({
+                        ids: chunkIds
+                    });
+                }
+            }
+            
             // Delete file
             await fs.unlink(doc.filePath);
             
@@ -540,7 +482,7 @@ class DocumentManager {
             
             return {
                 success: true,
-                message: `Document ${doc.originalName} deleted`,
+                message: `Document ${doc.originalName} deleted from ChromaDB`,
                 documentId
             };
         } catch (error) {
@@ -558,25 +500,59 @@ class DocumentManager {
             return { success: false, error: 'Document not found' };
         }
         
-        doc.lastAccessed = new Date().toISOString();
-        doc.accessCount++;
-        await this.saveMetadata();
-        
-        return {
-            success: true,
-            document: {
-                id: doc.id,
-                fileName: doc.originalName,
-                content: doc.content.join('\n\n'),
-                chunks: doc.chunks,
-                uploadedAt: doc.uploadedAt
+        try {
+            // Get all chunks for this document from ChromaDB
+            const chunkIds = [];
+            for (let i = 0; i < doc.chunks; i++) {
+                chunkIds.push(`${documentId}_chunk_${i}`);
             }
-        };
+            
+            const result = await this.collection.get({
+                ids: chunkIds
+            });
+            
+            const content = result.documents ? result.documents.join('\n\n') : '';
+            
+            doc.lastAccessed = new Date().toISOString();
+            doc.accessCount++;
+            await this.saveMetadata();
+            
+            return {
+                success: true,
+                document: {
+                    id: doc.id,
+                    fileName: doc.originalName,
+                    content: content,
+                    chunks: doc.chunks,
+                    uploadedAt: doc.uploadedAt
+                }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                error: error.message
+            };
+        }
     }
 
     // Clear all documents
     async clearAllDocuments() {
         try {
+            // Delete collection from ChromaDB
+            if (this.client && this.collection) {
+                await this.client.deleteCollection({ name: "documents" });
+                
+                // Recreate empty collection
+                this.collection = await this.client.createCollection({
+                    name: "documents",
+                    embeddingFunction: this.embeddingFunction,
+                    metadata: { 
+                        "description": "Document embeddings for RAG",
+                        "hnsw:space": "cosine"
+                    }
+                });
+            }
+            
             // Delete all document files
             for (const doc of Object.values(this.metadata.documents)) {
                 try {
@@ -596,7 +572,7 @@ class DocumentManager {
             
             return {
                 success: true,
-                message: 'All documents cleared'
+                message: 'All documents cleared from ChromaDB'
             };
         } catch (error) {
             return {
@@ -608,6 +584,6 @@ class DocumentManager {
 }
 
 // Create singleton instance
-const documentManager = new DocumentManager();
+const chromaDocumentManager = new ChromaDocumentManager();
 
-export default documentManager;
+export default chromaDocumentManager;

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Camera Settings</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+        pre { background: #f0f0f0; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Test Camera Settings Save</h1>
+    
+    <button onclick="testSave()">Test Save Camera Settings</button>
+    <button onclick="testLoad()">Test Load Settings</button>
+    
+    <h2>Response:</h2>
+    <pre id="response">Click a button to test...</pre>
+    
+    <script>
+        async function testSave() {
+            const settings = {
+                voice: 'alloy',
+                model: 'gpt-realtime',
+                temperature: 0.8,
+                instructions: 'You are a helpful assistant',
+                greeting: 'Hello!',
+                useEmoji: false,
+                useHumor: true,
+                beExpressive: true,
+                maxTokens: 4096,
+                sessionTimeout: 300,
+                contextWindow: 'medium',
+                tools: {
+                    ragEnabled: true,
+                    webSearchEnabled: true,
+                    flightSearchEnabled: false,
+                    weatherEnabled: true,
+                    cameraEnabled: true
+                },
+                cameraSettings: {
+                    width: 1920,
+                    height: 1080,
+                    quality: 0.92,
+                    frameRate: 30
+                },
+                moderationEnabled: true,
+                loggingEnabled: true
+            };
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                
+                const result = await response.json();
+                document.getElementById('response').textContent = 
+                    'Save Response:\n' + JSON.stringify(result, null, 2);
+            } catch (error) {
+                document.getElementById('response').textContent = 
+                    'Error: ' + error.message;
+            }
+        }
+        
+        async function testLoad() {
+            try {
+                const response = await fetch('/api/settings');
+                const settings = await response.json();
+                document.getElementById('response').textContent = 
+                    'Loaded Settings:\n' + JSON.stringify(settings, null, 2);
+            } catch (error) {
+                document.getElementById('response').textContent = 
+                    'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

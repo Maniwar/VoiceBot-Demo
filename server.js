@@ -6,10 +6,13 @@ import { dirname, join } from 'path';
 import multer from 'multer';
 import winston from 'winston';
 import configManager from './src/services/configManager.js';
-import documentManager from './src/services/documentManager.js';
+// Use Pinecone-powered document manager if available, otherwise fall back to standard
+import pineconeDocumentManager from './src/services/pineconeDocumentManager.js';
+const documentManager = pineconeDocumentManager;
 import { GoogleSearchTool } from './src/tools/googleSearchTool.js';
 import { FreeWeatherTool } from './src/tools/freeWeatherTool.js';
 import { FlightSearchTool } from './src/tools/flightSearchTool.js';
+import OpenAI from 'openai';
 
 // Load environment variables
 dotenv.config();
@@ -48,19 +51,23 @@ const upload = multer({
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(join(__dirname, 'public')));
 
-// Serve OpenAI SDK bundles
+// Serve OpenAI SDK bundle
 app.use('/sdk', express.static(join(__dirname, 'node_modules/@openai/agents-realtime/dist/bundle')));
-app.use('/sdk/agents', express.static(join(__dirname, 'node_modules/@openai/agents/dist/bundle')));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '2.0.0'
+    version: '2.0.0',
+    rag: {
+      provider: process.env.PINECONE_API_KEY ? 'pinecone' : 'local',
+      status: documentManager.index ? 'connected' : 'local-fallback'
+    }
   });
 });
 
@@ -348,6 +355,58 @@ app.get('/api/tools', (req, res) => {
       }
     ]
   });
+});
+
+// Image analysis endpoint
+app.post('/api/analyze-image', async (req, res) => {
+    try {
+        const { image, prompt } = req.body;
+        
+        if (!image) {
+            return res.status(400).json({ error: 'No image provided' });
+        }
+        
+        // Use OpenAI Vision API to analyze the image
+        const openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
+        
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: prompt || 'Describe what you see in this image in detail'
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: image,
+                            detail: 'low'
+                        }
+                    }
+                ]
+            }],
+            max_tokens: 500,
+            temperature: 0.7
+        });
+        
+        const description = response.choices[0]?.message?.content || 'Unable to analyze image';
+        
+        res.json({
+            success: true,
+            description: description
+        });
+        
+    } catch (error) {
+        logger.error('Image analysis error:', error);
+        res.status(500).json({
+            error: 'Failed to analyze image',
+            message: error.message
+        });
+    }
 });
 
 // Tool management endpoint

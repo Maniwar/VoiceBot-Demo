@@ -1,0 +1,2474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant - OpenAI Realtime</title>
+    
+    <!-- Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0b0d;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Visualizer */
+        .visualizer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 10;
+        }
+
+        .visualizer.active {
+            display: block;
+        }
+
+        .visualizer-bars {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            height: 60px;
+        }
+
+        .visualizer-bar {
+            width: 4px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+            animation: wave 0.8s ease-in-out infinite;
+        }
+
+        .visualizer.listening .visualizer-bar {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .visualizer.speaking .visualizer-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .visualizer.thinking .visualizer-bar {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .visualizer-bar:nth-child(1) { animation-delay: 0s; height: 20px; }
+        .visualizer-bar:nth-child(2) { animation-delay: 0.1s; height: 30px; }
+        .visualizer-bar:nth-child(3) { animation-delay: 0.2s; height: 45px; }
+        .visualizer-bar:nth-child(4) { animation-delay: 0.3s; height: 35px; }
+        .visualizer-bar:nth-child(5) { animation-delay: 0.4s; height: 25px; }
+
+        @keyframes wave {
+            0%, 100% { transform: scaleY(0.5); }
+            50% { transform: scaleY(1); }
+        }
+
+        /* Transcript bubble removed - using inline messages instead */
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        .container {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a1b26 0%, #242530 100%);
+            padding: 20px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .status-dot.connected {
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+
+        /* Main conversation area */
+        .conversation {
+            overflow-y: auto;
+            padding: 20px;
+            scroll-behavior: smooth;
+        }
+
+        .conversation::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .conversation::-webkit-scrollbar-track {
+            background: #1a1b26;
+        }
+
+        .conversation::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        .conversation::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .message-role {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .message.user .message-role {
+            color: #667eea;
+        }
+
+        .message.assistant .message-role {
+            color: #10b981;
+        }
+
+        .message.tool .message-role {
+            color: #f59e0b;
+        }
+
+        .message.system .message-role {
+            color: #888;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .message-content {
+            padding: 15px;
+            border-radius: 12px;
+            background: #1a1b26;
+            border-left: 3px solid transparent;
+        }
+
+        .message.user .message-content {
+            border-left-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .message.assistant .message-content {
+            border-left-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .message.tool .message-content {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .message.system .message-content {
+            border-left-color: #888;
+            background: rgba(136, 136, 136, 0.1);
+            font-size: 13px;
+        }
+
+        /* Rich content rendering */
+        .message-content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .message-content video {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .message-content iframe {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: none;
+            min-height: 400px;
+        }
+
+        .message-content a {
+            color: #667eea;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .message-content a:hover {
+            border-bottom-color: #667eea;
+        }
+
+        .message-content code {
+            background: #242530;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .message-content pre {
+            background: #242530;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .message-content pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .message-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        .message-content th,
+        .message-content td {
+            padding: 10px;
+            border: 1px solid #333;
+            text-align: left;
+        }
+
+        .message-content th {
+            background: #242530;
+        }
+
+        .message-content blockquote {
+            border-left: 4px solid #667eea;
+            padding-left: 15px;
+            margin: 15px 0;
+            color: #999;
+        }
+
+        .message-content ul,
+        .message-content ol {
+            margin: 10px 0 10px 20px;
+        }
+
+        .message-content li {
+            margin: 5px 0;
+        }
+
+        /* Search results styling */
+        .search-results {
+            margin: 15px 0;
+        }
+
+        .result-item {
+            background: #242530;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .result-item h3 {
+            margin: 0 0 10px 0;
+            color: #667eea;
+        }
+
+        .result-item cite {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .result-thumbnail {
+            float: right;
+            margin: 0 0 10px 10px;
+            border-radius: 4px;
+        }
+
+        /* Controls */
+        .controls {
+            background: #1a1b26;
+            border-top: 1px solid #333;
+            padding: 20px;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .mic-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 2px solid #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .mic-button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+        }
+
+        .mic-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .mic-button.active {
+            animation: pulse-active 1s infinite;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border-color: #ef4444;
+        }
+
+        .mic-button.listening {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #10b981;
+            animation: pulse-listening 1.5s infinite;
+        }
+
+        @keyframes pulse-listening {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
+        }
+
+        .mic-button.speaking {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            animation: pulse-speaking 1s infinite;
+        }
+
+        @keyframes pulse-speaking {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes pulse-active {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+        }
+
+        .mic-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Camera button styles */
+        .camera-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            margin-left: 10px;
+        }
+        
+        .camera-button:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(245, 87, 108, 0.4);
+        }
+        
+        .camera-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Camera Modal Styles */
+        .camera-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        
+        .camera-modal-content {
+            position: relative;
+            max-width: 90%;
+            max-height: 90%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .camera-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            color: white;
+            font-size: 36px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            z-index: 10001;
+        }
+        
+        .camera-close:hover {
+            color: #ff4444;
+        }
+        
+        #cameraPreview {
+            max-width: 100%;
+            max-height: 60vh;
+            border-radius: 10px;
+            background: #000;
+        }
+        
+        .camera-controls {
+            text-align: center;
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .capture-btn, .switch-camera-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        .capture-btn:hover, .switch-camera-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .text-input {
+            flex: 1;
+            padding: 15px;
+            background: #242530;
+            border: 1px solid #333;
+            color: #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .send-button {
+            padding: 15px 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: #764ba2;
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .secondary-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+
+        .secondary-button {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #333;
+            color: #999;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .secondary-button:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .secondary-button.active {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+
+        /* Loading indicator */
+        .loading {
+            display: none;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: flex;
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 5px;
+        }
+
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        /* Error message */
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 20px;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        /* Admin link */
+        .admin-link {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        .admin-link a {
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .admin-link a:hover {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* Document Panel */
+        .document-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100%;
+            background: #1a1b26;
+            border-left: 1px solid #333;
+            transition: right 0.3s ease;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .document-panel.open {
+            right: 0;
+        }
+
+        .panel-header {
+            padding: 20px;
+            background: #242530;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            color: #e0e0e0;
+        }
+
+        .close-panel {
+            background: transparent;
+            border: none;
+            color: #666;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .close-panel:hover {
+            color: #e0e0e0;
+        }
+
+        .document-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .document-item {
+            background: #242530;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+
+        .document-item:hover {
+            background: #2a2b36;
+        }
+
+        .document-name {
+            color: #e0e0e0;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .document-meta {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .document-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .doc-action-btn {
+            padding: 5px 10px;
+            background: transparent;
+            border: 1px solid #333;
+            color: #999;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .doc-action-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .doc-action-btn.delete:hover {
+            border-color: #ef4444;
+            color: #ef4444;
+        }
+
+        .upload-section {
+            padding: 20px;
+            border-top: 1px solid #333;
+        }
+
+        .upload-button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .upload-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .documents-toggle {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            z-index: 99;
+        }
+
+        .documents-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .doc-count {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        /* Camera streaming styles */
+        .capture-btn.streaming {
+            background: #ef4444;
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Voice Assistant</h1>
+            <div class="status">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Initializing...</span>
+            </div>
+            <div class="admin-link">
+                <a href="/admin.html">⚙️ Settings</a>
+            </div>
+        </div>
+
+        <button class="documents-toggle" id="documentsToggle">
+            📚 Documents
+            <span class="doc-count" id="docCount">0</span>
+        </button>
+
+        <div class="conversation" id="conversation">
+            <div style="text-align: center; padding: 60px 20px; color: #666;">
+                <div style="font-size: 48px; margin-bottom: 20px;">🎤</div>
+                <p>Click the microphone to start talking</p>
+                <p style="margin-top: 10px; font-size: 14px;">Or type a message below</p>
+                <p style="margin-top: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 3px solid #667eea;">
+                    💡 <strong>Tip:</strong> Upload documents using the 📚 Documents button to enable RAG (Retrieval-Augmented Generation). 
+                    The assistant will be able to answer questions about your uploaded content!
+                </p>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="loading-dots">
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+                <div class="loading-dot"></div>
+            </div>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="visualizer" id="visualizer">
+            <div class="visualizer-bars">
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+            </div>
+        </div>
+
+        <!-- Transcript bubble removed - using inline messages -->
+
+        <div class="controls">
+            <div class="input-area">
+                <button id="micButton" class="mic-button">
+                    🎤
+                </button>
+                <button id="cameraButton" class="camera-button" title="Take a photo to analyze">
+                    📷
+                </button>
+                <input type="text" id="textInput" class="text-input" placeholder="Type a message..." disabled>
+                <button id="sendButton" class="send-button" disabled>Send</button>
+            </div>
+            <div class="secondary-controls">
+                <button class="secondary-button" id="muteButton">🔇 Mute</button>
+                <button class="secondary-button" onclick="clearConversation()">🗑️ Clear</button>
+                <button class="secondary-button" id="interruptButton">⏹️ Stop</button>
+                <button class="secondary-button" onclick="downloadTranscript()">💾 Download</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Management Panel -->
+    <div class="document-panel" id="documentPanel">
+        <div class="panel-header">
+            <h3 class="panel-title">📚 Document Management</h3>
+            <button class="close-panel" id="closePanel">×</button>
+        </div>
+        <div class="document-list" id="documentList">
+            <div style="text-align: center; color: #666; padding: 40px;">
+                <div style="font-size: 48px; margin-bottom: 10px;">📄</div>
+                <p>No documents uploaded yet</p>
+                <p style="font-size: 12px; margin-top: 10px;">Upload PDFs, TXT, MD, CSV, or JSON files</p>
+            </div>
+        </div>
+        <div class="upload-section">
+            <input type="file" id="fileInput" class="file-input" accept=".pdf,.txt,.md,.csv,.json" multiple>
+            <button class="upload-button" onclick="document.getElementById('fileInput').click()">
+                📤 Upload Documents
+            </button>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div id="cameraModal" class="camera-modal" style="display: none;">
+        <div class="camera-modal-content">
+            <button class="camera-close" id="closeCameraModal">×</button>
+            <video id="cameraPreview" autoplay></video>
+            <canvas id="cameraCanvas" style="display: none;"></canvas>
+            <div class="camera-controls">
+                <button id="captureButton" class="capture-btn">📸 Capture & Analyze</button>
+                <button id="switchCameraButton" class="switch-camera-btn">🔄 Switch Camera</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Import OpenAI SDK and tool helper
+        import('/sdk/openai-realtime-agents.mjs').then(SDK => {
+            const { RealtimeAgent, RealtimeSession, OpenAIRealtimeWebRTC, tool } = SDK;
+            
+            // Helper function to wrap tools for SDK compatibility
+            function wrapTool(toolDefinition) {
+                if (!tool) return toolDefinition; // Fallback if SDK doesn't provide tool function
+                return tool(toolDefinition);
+            }
+            
+            let session;
+            let agent;
+            let transport;
+            let isConnected = false;
+            let isTalking = false;
+            let isMuted = false;
+            let conversation = [];
+            let currentTranscript = '';
+            let audioContext;
+            let currentAssistantMessage = '';
+            let currentAssistantMessageDiv = null;  // Track current assistant message div for real-time updates
+            let uploadedDocuments = [];
+
+            const elements = {
+                statusDot: document.getElementById('statusDot'),
+                statusText: document.getElementById('statusText'),
+                micButton: document.getElementById('micButton'),
+                cameraButton: document.getElementById('cameraButton'),
+                textInput: document.getElementById('textInput'),
+                sendButton: document.getElementById('sendButton'),
+                conversation: document.getElementById('conversation'),
+                loading: document.getElementById('loading'),
+                error: document.getElementById('error'),
+                visualizer: document.getElementById('visualizer'),
+                // transcriptBubble removed - using inline messages
+                muteButton: document.getElementById('muteButton'),
+                interruptButton: document.getElementById('interruptButton'),
+                documentsToggle: document.getElementById('documentsToggle'),
+                documentPanel: document.getElementById('documentPanel'),
+                documentList: document.getElementById('documentList'),
+                closePanel: document.getElementById('closePanel'),
+                fileInput: document.getElementById('fileInput'),
+                docCount: document.getElementById('docCount'),
+                // Camera elements
+                cameraModal: document.getElementById('cameraModal'),
+                cameraPreview: document.getElementById('cameraPreview'),
+                cameraCanvas: document.getElementById('cameraCanvas'),
+                captureButton: document.getElementById('captureButton'),
+                switchCameraButton: document.getElementById('switchCameraButton'),
+                closeCameraModal: document.getElementById('closeCameraModal')
+            };
+
+            // Document panel handlers
+            elements.documentsToggle.addEventListener('click', () => {
+                elements.documentPanel.classList.add('open');
+                loadDocuments();
+            });
+
+            elements.closePanel.addEventListener('click', () => {
+                elements.documentPanel.classList.remove('open');
+            });
+
+            // Camera functionality
+            let mediaStream = null;
+            let currentCamera = 'user'; // 'user' for front, 'environment' for back
+
+            // Camera state
+            let isStreamingVideo = false;
+            let videoStreamInterval = null;
+            
+            // Get camera settings from admin configuration
+            async function getCameraSettings() {
+                try {
+                    // First try to get from server
+                    const response = await fetch('/api/settings');
+                    if (response.ok) {
+                        const settings = await response.json();
+                        if (settings.cameraSettings) {
+                            return {
+                                width: settings.cameraSettings.width || 1920,
+                                height: settings.cameraSettings.height || 1080,
+                                quality: settings.cameraSettings.quality || 0.92,
+                                frameRate: settings.cameraSettings.frameRate || 30
+                            };
+                        }
+                    }
+                } catch (error) {
+                    console.log('Using default camera settings:', error);
+                }
+                
+                // Fallback to defaults
+                return {
+                    width: 1920,
+                    height: 1080,
+                    quality: 0.92,
+                    frameRate: 30
+                };
+            }
+            
+            // Camera button handler - toggle between capture and real-time mode
+            elements.cameraButton.addEventListener('click', async () => {
+                if (!isConnected) {
+                    showError('Please connect first before using camera');
+                    return;
+                }
+                
+                try {
+                    // Request camera permission
+                    const camSettings = await getCameraSettings();
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            facingMode: currentCamera,
+                            width: { ideal: camSettings.width, min: 1280 },
+                            height: { ideal: camSettings.height, min: 720 },
+                            frameRate: { ideal: camSettings.frameRate }
+                        },
+                        audio: false 
+                    });
+                    
+                    // Show modal
+                    elements.cameraModal.style.display = 'flex';
+                    
+                    // Attach stream to video element
+                    elements.cameraPreview.srcObject = mediaStream;
+                    
+                    // Update capture button to show streaming option
+                    elements.captureButton.innerHTML = '🎥 Start Real-time Stream';
+                    
+                } catch (error) {
+                    console.error('Camera error:', error);
+                    showError('Could not access camera. Please check permissions.');
+                }
+            });
+
+            // Close camera modal
+            elements.closeCameraModal.addEventListener('click', () => {
+                stopCamera();
+            });
+
+            // Switch camera
+            elements.switchCameraButton.addEventListener('click', async () => {
+                currentCamera = currentCamera === 'user' ? 'environment' : 'user';
+                
+                // Stop current stream
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+                
+                try {
+                    // Start new stream with different camera
+                    const camSettings = await getCameraSettings();
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            facingMode: currentCamera,
+                            width: { ideal: camSettings.width, min: 1280 },
+                            height: { ideal: camSettings.height, min: 720 },
+                            frameRate: { ideal: camSettings.frameRate }
+                        },
+                        audio: false 
+                    });
+                    elements.cameraPreview.srcObject = mediaStream;
+                } catch (error) {
+                    console.error('Switch camera error:', error);
+                    showError('Could not switch camera');
+                }
+            });
+
+            // Toggle between capture and real-time streaming
+            elements.captureButton.addEventListener('click', () => {
+                if (!mediaStream) return;
+                
+                if (!isStreamingVideo) {
+                    // Start real-time video streaming
+                    startVideoStream();
+                } else {
+                    // Stop streaming
+                    stopVideoStream();
+                }
+            });
+            
+            // Start real-time video streaming
+            function startVideoStream() {
+                // Check if connected before starting
+                if (!isConnected || !transport) {
+                    showError('Please wait for voice connection before starting video stream');
+                    return;
+                }
+                
+                isStreamingVideo = true;
+                elements.captureButton.innerHTML = '⏹️ Stop Streaming';
+                elements.captureButton.classList.add('streaming');
+                
+                showStatusMessage('🎥 Starting real-time video stream...');
+                addMessage('system', '🎥 Real-time video streaming started. I can now see you through the camera! Ask me what I see or about your background.');
+                
+                // Send frames every 2000ms (0.5 FPS - one frame every 2 seconds)
+                // This is much more reasonable for continuous monitoring
+                videoStreamInterval = setInterval(async () => {
+                    if (!isStreamingVideo || !mediaStream || !isConnected) return;
+                    
+                    const video = elements.cameraPreview;
+                    const canvas = elements.cameraCanvas;
+                    // Use configured resolution for clear image capture
+                    const camSettings = await getCameraSettings();
+                    canvas.width = camSettings.width;
+                    canvas.height = camSettings.height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert to base64 and send
+                    canvas.toBlob(async (blob) => {
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                            // Send frame for analysis
+                            await analyzeVideoFrame(reader.result);
+                        };
+                        reader.readAsDataURL(blob);
+                    }, 'image/jpeg', 0.92); // High quality for clear images
+                }, 2000); // Send 1 frame every 2 seconds (0.5 FPS)
+            }
+            
+            // Stop video streaming
+            function stopVideoStream() {
+                isStreamingVideo = false;
+                elements.captureButton.innerHTML = '🎥 Start Real-time Stream';
+                elements.captureButton.classList.remove('streaming');
+                
+                if (videoStreamInterval) {
+                    clearInterval(videoStreamInterval);
+                    videoStreamInterval = null;
+                }
+                
+                addMessage('system', '⏹️ Real-time video streaming stopped.');
+            }
+
+            function stopCamera() {
+                // Stop video streaming if active
+                if (isStreamingVideo) {
+                    stopVideoStream();
+                }
+                
+                // Stop media stream
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+                
+                // Hide modal
+                elements.cameraModal.style.display = 'none';
+                elements.cameraPreview.srcObject = null;
+            }
+
+            // Create an image analysis tool that will be called when video frames are sent
+            // Flight search tool
+            const flightSearchTool = wrapTool({
+                name: 'search_flights',
+                description: 'Search for flight information, prices, and availability. Use this when users ask about travel, flights, or airline tickets.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        origin: { type: 'string', description: 'Origin city or airport code' },
+                        destination: { type: 'string', description: 'Destination city or airport code' },
+                        departDate: { type: 'string', description: 'Departure date (YYYY-MM-DD)' },
+                        returnDate: { type: 'string', description: 'Return date for round trips (YYYY-MM-DD)', nullable: true },
+                        passengers: { type: 'number', default: 1 }
+                    },
+                    required: ['origin', 'destination', 'departDate']
+                },
+                execute: async (args) => {
+                    addMessage('tool', `✈️ Searching flights from ${args.origin} to ${args.destination}`);
+                    // Mock response for demo
+                    return `## Flight Results\n\n✈️ **${args.origin} → ${args.destination}**\n\nDeparture: ${args.departDate}\n\nBest options:\n- United Airlines: $450\n- Delta: $480\n- American: $520`;
+                }
+            });
+
+            const imageAnalysisTool = wrapTool({
+                name: 'analyze_camera',
+                description: 'Analyze the current camera view or uploaded image. Use this when users ask about what you see or to describe the camera/image.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        prompt: {
+                            type: 'string',
+                            description: 'What to look for or analyze in the image',
+                            default: 'Describe everything visible'
+                        }
+                    }
+                },
+                execute: async (args) => {
+                    try {
+                        // Check if we have a current camera frame or uploaded image
+                        const imageData = window.currentCameraFrame || window.latestUploadedImage;
+                        
+                        if (!imageData) {
+                            return "No image available. Please start the camera stream or upload an image first.";
+                        }
+                        
+                        // Call Vision API to analyze the image
+                        const response = await fetch('/api/analyze-image', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                image: imageData,
+                                prompt: args.prompt || 'Describe everything you see in detail'
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Image analysis failed');
+                        }
+                        
+                        const result = await response.json();
+                        return result.description || "I can see the image but couldn't analyze it properly.";
+                        
+                    } catch (error) {
+                        console.error('Image analysis error:', error);
+                        return `Error analyzing image: ${error.message}. Make sure the camera is active or an image is uploaded.`;
+                    }
+                }
+            });
+            
+            // Analyze single video frame using a tool call
+            async function analyzeVideoFrame(base64Image) {
+                if (!isStreamingVideo || !isConnected) return;
+                
+                try {
+                    // Store the current frame for the tool to access
+                    window.currentCameraFrame = base64Image;
+                    
+                    // Instead of sending image directly, trigger a tool to analyze it
+                    // The Realtime API doesn't support direct image input
+                    // We'll use text to describe what we want analyzed
+                    if (transport && transport.sendEvent && isConnected) {
+                        transport.sendEvent({
+                            type: 'conversation.item.create',
+                            item: {
+                                type: 'message',
+                                role: 'user',
+                                content: [
+                                    { 
+                                        type: 'input_text', 
+                                        text: 'Describe what you see in the current camera view' 
+                                    }
+                                ]
+                            }
+                        });
+                        
+                        // Store latest frame for reference
+                        window.latestCameraFrame = base64Image;
+                    }
+                } catch (error) {
+                    console.error('Frame analysis error:', error);
+                }
+            }
+            
+            async function analyzeImage(base64Image) {
+                try {
+                    // Store for tool access
+                    window.latestUploadedImage = base64Image;
+                    
+                    // Show in conversation
+                    const imgPreview = `<img src="${base64Image}" style="max-width: 300px; border-radius: 10px; margin: 10px 0;">`;
+                    addMessage('user', `📷 I've shared an image for analysis:\n${imgPreview}`, true);
+                    
+                    // Send text prompt to trigger tool usage
+                    if (transport && transport.sendEvent) {
+                        // The Realtime API doesn't support direct image input
+                        // We ask the assistant to analyze using the tool
+                        transport.sendEvent({
+                            type: 'conversation.item.create',
+                            item: {
+                                type: 'message',
+                                role: 'user',
+                                content: [
+                                    { 
+                                        type: 'input_text', 
+                                        text: 'I\'ve captured an image. Please help me understand what\'s in it. [Image analysis would be processed server-side with Vision API]' 
+                                    }
+                                ]
+                            }
+                        });
+                        
+                        showStatusMessage('📷 Image captured. Analysis would be processed with Vision API.');
+                        
+                        // For now, we can describe the limitation
+                        transport.sendEvent({ type: 'response.create' });
+                    }
+                } catch (error) {
+                    console.error('Image analysis error:', error);
+                    showError('Failed to analyze image');
+                }
+            }
+
+            // File upload handler
+            elements.fileInput.addEventListener('change', async (e) => {
+                const files = e.target.files;
+                if (!files.length) return;
+
+                for (const file of files) {
+                    await uploadDocument(file);
+                }
+                
+                elements.fileInput.value = '';
+                loadDocuments();
+            });
+
+            // Upload document function
+            async function uploadDocument(file) {
+                const formData = new FormData();
+                formData.append('document', file);
+
+                try {
+                    showStatusMessage(`📤 Uploading ${file.name}...`);
+                    
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showStatusMessage(`✅ Successfully uploaded ${file.name}`);
+                    } else {
+                        showError(`Failed to upload ${file.name}: ${result.error}`);
+                    }
+                } catch (error) {
+                    showError(`Upload error: ${error.message}`);
+                }
+            }
+
+            // Load documents function
+            async function loadDocuments() {
+                try {
+                    const response = await fetch('/api/documents');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        uploadedDocuments = data.documents || [];
+                        elements.docCount.textContent = uploadedDocuments.length;
+                        displayDocuments(uploadedDocuments);
+                    }
+                } catch (error) {
+                    console.error('Failed to load documents:', error);
+                }
+            }
+
+            // Display documents in panel
+            function displayDocuments(documents) {
+                if (!documents || documents.length === 0) {
+                    elements.documentList.innerHTML = `
+                        <div style="text-align: center; color: #666; padding: 40px;">
+                            <div style="font-size: 48px; margin-bottom: 10px;">📄</div>
+                            <p>No documents uploaded yet</p>
+                            <p style="font-size: 12px; margin-top: 10px;">Upload PDFs, TXT, MD, CSV, or JSON files</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                elements.documentList.innerHTML = documents.map(doc => `
+                    <div class="document-item" data-id="${doc.id}">
+                        <div class="document-name">${doc.fileName || doc.originalName || 'Unnamed Document'}</div>
+                        <div class="document-meta">
+                            ${doc.fileType || doc.fileExt || 'unknown'} • ${doc.chunks || 0} chunks • ${new Date(doc.uploadedAt).toLocaleDateString()}
+                        </div>
+                        <div class="document-actions">
+                            <button class="doc-action-btn" onclick="viewDocument('${doc.id}')">View</button>
+                            <button class="doc-action-btn delete" onclick="deleteDocument('${doc.id}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Delete document function
+            window.deleteDocument = async function(docId) {
+                if (!confirm('Are you sure you want to delete this document?')) return;
+                
+                try {
+                    const response = await fetch(`/api/documents/${docId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        showStatusMessage('📄 Document deleted');
+                        loadDocuments();
+                    } else {
+                        showError('Failed to delete document');
+                    }
+                } catch (error) {
+                    showError(`Delete error: ${error.message}`);
+                }
+            };
+
+            // View document function
+            window.viewDocument = async function(docId) {
+                try {
+                    const response = await fetch(`/api/documents/${docId}`);
+                    const result = await response.json();
+                    
+                    if (result.success && result.document) {
+                        const doc = result.document;
+                        const preview = doc.content ? doc.content.substring(0, 500) : 'No content available';
+                        // Display document content in conversation
+                        addMessage('system', `📄 **Document: ${doc.fileName}**\n\n${preview}${doc.content && doc.content.length > 500 ? '...' : ''}\n\n_Total: ${doc.chunks || 0} chunks_`);
+                    } else {
+                        showError('Could not load document content');
+                    }
+                } catch (error) {
+                    showError(`View error: ${error.message}`);
+                }
+            };
+
+            // Rich content renderer
+            function renderContent(content) {
+                // First check if it's already HTML with media
+                if (content.includes('<img') || content.includes('<video') || content.includes('<iframe>')) {
+                    return content;
+                }
+                
+                // Configure marked for better rendering
+                marked.setOptions({
+                    breaks: true, // Convert \n to <br>
+                    gfm: true,    // GitHub flavored markdown
+                    sanitize: false // Allow HTML for images
+                });
+                
+                // Parse markdown
+                let html = marked.parse(content);
+                
+                // Make links open in new tab and style them
+                html = html.replace(/<a /g, '<a target="_blank" style="color: #667eea; text-decoration: underline;" ');
+                
+                // Ensure images are responsive
+                html = html.replace(/<img /g, '<img style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" ');
+                
+                // Convert YouTube URLs to embedded videos
+                html = html.replace(/https:\/\/(www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/g, 
+                    '<iframe width="560" height="315" src="https://www.youtube.com/embed/$2" frameborder="0" allowfullscreen></iframe>');
+                
+                // Convert image URLs that aren't already in img tags
+                html = html.replace(/(?<!src=")https?:\/\/[^\s<]+\.(jpg|jpeg|png|gif|webp)/gi, 
+                    '<img src="$&" alt="Image">');
+                
+                // Syntax highlighting for code blocks
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                tempDiv.querySelectorAll('pre code').forEach(block => {
+                    hljs.highlightElement(block);
+                });
+                
+                return tempDiv.innerHTML;
+            }
+
+            // Add message to conversation
+            function addMessage(role, content, raw = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${role}`;
+                
+                const time = new Date().toLocaleTimeString();
+                const roleLabel = role === 'user' ? 'You' : 
+                                 role === 'assistant' ? 'Assistant' : 
+                                 role === 'tool' ? 'Tool' :
+                                 role === 'system' ? 'System' : role;
+                
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <span class="message-role">${roleLabel}</span>
+                        <span class="message-time">${time}</span>
+                    </div>
+                    <div class="message-content">
+                        ${raw ? content : renderContent(content)}
+                    </div>
+                `;
+                
+                // Clear placeholder if exists
+                const placeholder = elements.conversation.querySelector('div[style*="text-align: center"]');
+                if (placeholder) {
+                    placeholder.remove();
+                }
+                
+                elements.conversation.appendChild(messageDiv);
+                elements.conversation.scrollTop = elements.conversation.scrollHeight;
+                
+                // Store in conversation history
+                conversation.push({ role, content, time });
+            }
+
+            // Update status
+            function updateStatus(text, connected = false) {
+                elements.statusText.textContent = text;
+                if (connected) {
+                    elements.statusDot.classList.add('connected');
+                } else {
+                    elements.statusDot.classList.remove('connected');
+                }
+            }
+
+            // Show error
+            function showError(message) {
+                elements.error.textContent = message;
+                elements.error.classList.add('active');
+                setTimeout(() => {
+                    elements.error.classList.remove('active');
+                }, 5000);
+            }
+
+            // Show status message
+            function showStatusMessage(message) {
+                addMessage('system', message);
+            }
+
+            // Tool to dynamically create tools from configuration
+            function createToolFromConfig(toolConfig) {
+                if (!tool) {
+                    // Fallback if tool helper is not available
+                    return {
+                        name: toolConfig.name,
+                        description: toolConfig.description,
+                        parameters: toolConfig.parameters || {},
+                        async execute(args) {
+                            try {
+                                // Execute custom tool logic from config
+                                const result = await fetch(toolConfig.endpoint, {
+                                    method: toolConfig.method || 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(args)
+                                });
+                                return await result.text();
+                            } catch (error) {
+                                return `Tool error: ${error.message}`;
+                            }
+                        }
+                    };
+                }
+                
+                // Use SDK tool helper if available
+                return tool({
+                    name: toolConfig.name,
+                    description: toolConfig.description,
+                    parameters: toolConfig.parameters || {},
+                    async execute(args) {
+                        try {
+                            // Execute custom tool logic from config
+                            const result = await fetch(toolConfig.endpoint, {
+                                method: toolConfig.method || 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(args)
+                            });
+                            return await result.text();
+                        } catch (error) {
+                            return `Tool error: ${error.message}`;
+                        }
+                    }
+                });
+            }
+            
+            // Create proper tool definition for SDK
+            const searchDocumentsTool = tool ? tool({
+                name: 'search_documents',
+                description: 'Search through uploaded documents. ALWAYS use this when users ask ANY question about documents, data, or information. Extract keywords automatically from their question - never ask what to search for.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { 
+                            type: 'string', 
+                            description: 'Search keywords extracted from user question. Example: for "What is the ROI?" use "ROI return investment profit"' 
+                        },
+                        limit: { 
+                            type: 'number', 
+                            description: 'Maximum number of results to return',
+                            default: 5 
+                        }
+                    },
+                    required: ['query']
+                },
+                async execute(args) {
+                    try {
+                        addMessage('tool', `📚 Searching documents for: "${args.query}"`); 
+                        
+                        const response = await fetch('/api/documents/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                query: args.query,
+                                limit: args.limit || 20  // Increased to get more context
+                            })
+                        });
+                        
+                        const results = await response.json();
+                        
+                        if (results.results && results.results.length > 0) {
+                            let formattedResponse = `Found ${results.results.length} relevant sections:\n\n`;
+                            results.results.forEach((result, idx) => {
+                                const score = result.relevanceScore || result.score || 0;
+                                formattedResponse += `**Result ${idx + 1}**`;
+                                if (score > 0) {
+                                    formattedResponse += ` (Score: ${score.toFixed(2)})`;
+                                }
+                                formattedResponse += `:\n`;
+                                formattedResponse += `📄 From: ${result.fileName || result.documentName || 'Unknown'}\n`;
+                                
+                                // Return full content for the assistant to read
+                                if (result.content && result.content.length > 0) {
+                                    formattedResponse += `\n${result.content}\n\n`;
+                                } else if (result.snippet) {
+                                    // Fallback to snippet if no full content
+                                    formattedResponse += `> ${result.snippet}\n\n`;
+                                }
+                            });
+                            return formattedResponse;
+                        } else {
+                            return "No relevant information found in the uploaded documents.";
+                        }
+                    } catch (error) {
+                        return `Error searching documents: ${error.message}`;
+                    }
+                }
+            }) : {
+                name: 'search_documents',
+                description: 'Search through uploaded documents. ALWAYS use this when users ask ANY question about documents, data, or information. Extract keywords automatically from their question - never ask what to search for.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { 
+                            type: 'string', 
+                            description: 'Search keywords extracted from user question. Example: for "What is the ROI?" use "ROI return investment profit"' 
+                        },
+                        limit: { 
+                            type: 'number', 
+                            description: 'Maximum number of results to return',
+                            default: 5 
+                        }
+                    },
+                    required: ['query']
+                },
+                execute: async (args) => {
+                    try {
+                        addMessage('tool', `📚 Searching documents for: "${args.query}"`);
+                        
+                        const response = await fetch('/api/documents/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                query: args.query,
+                                limit: args.limit || 20  // Increased to get more context
+                            })
+                        });
+                        
+                        const results = await response.json();
+                        
+                        if (results.results && results.results.length > 0) {
+                            let formattedResponse = `Found ${results.results.length} relevant sections:\n\n`;
+                            results.results.forEach((result, idx) => {
+                                const score = result.relevanceScore || result.score || 0;
+                                formattedResponse += `**Result ${idx + 1}**`;
+                                if (score > 0) {
+                                    formattedResponse += ` (Score: ${score.toFixed(2)})`;
+                                }
+                                formattedResponse += `:\n`;
+                                formattedResponse += `📄 From: ${result.fileName || result.documentName || 'Unknown'}\n`;
+                                
+                                // Return full content for the assistant to read
+                                if (result.content && result.content.length > 0) {
+                                    formattedResponse += `\n${result.content}\n\n`;
+                                } else if (result.snippet) {
+                                    // Fallback to snippet if no full content
+                                    formattedResponse += `> ${result.snippet}\n\n`;
+                                }
+                            });
+                            return formattedResponse;
+                        } else {
+                            return "No relevant information found in the uploaded documents.";
+                        }
+                    } catch (error) {
+                        return `Error searching documents: ${error.message}`;
+                    }
+                }
+            };
+
+            const googleSearchTool = wrapTool({
+                name: 'search_google',
+                description: 'Search the web for current information, news, facts, images, and videos. Use this when users ask about current events, general knowledge, or need information not in uploaded documents.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { type: 'string', description: 'Search query' },
+                        searchType: { type: 'string', enum: ['web', 'image'], default: 'web' },
+                        num: { type: 'number', default: 5 }
+                    },
+                    required: ['query']
+                },
+                execute: async (args) => {
+                    try {
+                        addMessage('tool', `🔍 Searching Google for: "${args.query}"`);
+                        
+                        // Try to use real Google API if configured
+                        const apiKeys = await loadApiKeys();
+                        if (apiKeys?.google?.apiKey && apiKeys?.google?.searchEngineId) {
+                            try {
+                                // Make actual API call
+                                const params = new URLSearchParams({
+                                    key: apiKeys.google.apiKey,
+                                    cx: apiKeys.google.searchEngineId,
+                                    q: args.query,
+                                    num: args.num || 5
+                                });
+                                
+                                // Add search type if image search
+                                if (args.searchType === 'image') {
+                                    params.append('searchType', 'image');
+                                }
+                                
+                                const response = await fetch(`https://www.googleapis.com/customsearch/v1?${params}`);
+                                const data = await response.json();
+                                
+                                if (data.error) {
+                                    throw new Error(data.error.message);
+                                }
+                                
+                                // Format as rich markdown with images
+                                let markdown = `## 🔍 Search Results: "${args.query}"\n\n`;
+                                if (data.searchInformation) {
+                                    markdown += `*Found ${data.searchInformation.totalResults} results*\n\n`;
+                                }
+                                
+                                if (data.items && data.items.length > 0) {
+                                    data.items.forEach((item, idx) => {
+                                        markdown += `### ${idx + 1}. [${item.title}](${item.link})\n`;
+                                        markdown += `🔗 *${item.displayLink}*\n\n`;
+                                        
+                                        // For image search, use the link directly as image
+                                        if (args.searchType === 'image' && item.link) {
+                                            markdown += `![${item.title}](${item.link})\n\n`;
+                                        } else {
+                                            // For web search, try to find images in pagemap
+                                            const mainImage = item.pagemap?.cse_image?.[0]?.src || 
+                                                             item.pagemap?.imageobject?.[0]?.url ||
+                                                             item.pagemap?.metatags?.[0]?.['og:image'];
+                                            if (mainImage) {
+                                                markdown += `![${item.title}](${mainImage})\n\n`;
+                                            } else if (item.pagemap?.cse_thumbnail?.[0]?.src) {
+                                                // Use thumbnail as fallback
+                                                markdown += `![Thumbnail](${item.pagemap.cse_thumbnail[0].src})\n\n`;
+                                            }
+                                        }
+                                        
+                                        // Add snippet
+                                        if (item.snippet) {
+                                            markdown += `${item.snippet}\n\n`;
+                                        }
+                                        
+                                        // Add video indicator if available
+                                        if (item.pagemap?.videoobject?.[0]) {
+                                            markdown += `📹 **[Video Available](${item.link})**\n\n`;
+                                        }
+                                        
+                                        markdown += `---\n\n`;
+                                    });
+                                    
+                                    return markdown;
+                                } else {
+                                    return `No results found for "${args.query}". Please try a different search term.`;
+                                }
+                            } catch (apiError) {
+                                console.error('Google API error:', apiError);
+                                // Fall through to demo results
+                            }
+                        }
+                        
+                        // Fallback demo results with better formatting
+                        const demoResults = [
+                            {
+                                title: "OpenAI Realtime API",
+                                link: "https://platform.openai.com/docs",
+                                snippet: "Build voice experiences with the Realtime API",
+                                image: "https://via.placeholder.com/400x200/4285f4/ffffff?text=Realtime+API"
+                            },
+                            {
+                                title: "Voice Assistant Guide",
+                                link: "https://example.com/voice",
+                                snippet: "Create natural conversational experiences",
+                                image: "https://via.placeholder.com/400x200/34a853/ffffff?text=Voice+AI"
+                            }
+                        ];
+                        
+                        let markdown = `## 🔍 Demo Results: "${args.query}"\n\n`;
+                        markdown += `*⚠️ Configure Google API for real search*\n\n`;
+                        
+                        demoResults.forEach((item, idx) => {
+                            markdown += `### ${idx + 1}. [${item.title}](${item.link})\n\n`;
+                            if (item.image) {
+                                markdown += `![${item.title}](${item.image})\n\n`;
+                            }
+                            markdown += `${item.snippet}\n\n---\n\n`;
+                        });
+                        
+                        return markdown;
+                    } catch (error) {
+                        console.error('Search error:', error);
+                        return `Error searching: ${error.message}`;
+                    }
+                }
+            });
+
+            const weatherTool = wrapTool({
+                name: 'get_weather',
+                description: 'Get current weather and forecast information for any city. Use this when users ask about weather conditions, temperature, or forecast.',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        location: { type: 'string', description: 'City name' },
+                        forecast: { type: 'boolean', default: false }
+                    },
+                    required: ['location']
+                },
+                execute: async (args) => {
+                    addMessage('tool', `☁️ Getting weather for: ${args.location}`);
+                    // This would call your free weather API
+                    return `## Weather in ${args.location}\n\n☀️ **Sunny, 22°C**\n\nHumidity: 65%\nWind: 10 km/h`;
+                }
+            });
+
+            // Initialize session
+            async function initialize() {
+                try {
+                    updateStatus('Getting session key...', false);
+                    showStatusMessage('🔄 Initializing voice assistant...');
+                    
+                    // Load documents count
+                    await loadDocuments();
+                    
+                    // Get settings and ephemeral key from server
+                    const [sessionResponse, settingsResponse] = await Promise.all([
+                        fetch('/api/session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                voice: localStorage.getItem('voice') || 'shimmer',
+                                model: 'gpt-realtime'
+                            })
+                        }),
+                        fetch('/api/settings')
+                    ]);
+
+                    if (!sessionResponse.ok) {
+                        throw new Error(`Failed to get session: ${sessionResponse.statusText}`);
+                    }
+
+                    const data = await sessionResponse.json();
+                    const settings = await settingsResponse.json();
+                    
+                    updateStatus('Creating agent...', false);
+                    
+                    // Build comprehensive instructions including tool instructions
+                    let instructions = settings.instructions || `You are a helpful, witty, and friendly AI assistant.`;
+                    
+                    instructions += `\n\nCRITICAL RULES:\n1. You MUST ALWAYS respond in ENGLISH only, regardless of the language spoken to you.\n2. Be proactive with tool usage - don't ask permission to use tools, just use them when appropriate.\n3. When users ask questions, automatically determine which tool to use based on context:\n   - Documents/data questions → use search_documents\n   - Current events/general knowledge → use search_google\n   - Weather inquiries → use get_weather\n   - Travel/flights → use search_flights\n   - Image questions → analyze with camera tool\n4. NEVER ask "What should I search for?" - extract keywords automatically from questions.`;
+                    
+                    // Add tool-specific instructions based on enabled tools
+                    if (settings.tools) {
+                        instructions += `\n\n**Available Tools and How to Use Them:**\n`;
+                        
+                        if (settings.tools.ragEnabled && settings.toolInstructions?.rag) {
+                            instructions += `\n- **Document Search (RAG):** ${settings.toolInstructions.rag}`;
+                            if (uploadedDocuments.length > 0) {
+                                instructions += `\n  The user has ${uploadedDocuments.length} document(s) uploaded. IMPORTANT: When the user asks ANY question about the documents or data, immediately use the search_documents tool WITHOUT asking them what to search for. Extract relevant keywords from their question and search automatically. For example, if they ask "What's the best ROI?" search for "ROI return investment performance metrics". Never ask "What keywords should I search for?" - just search based on their question.`;
+                            }
+                        }
+                        
+                        if (settings.tools.webSearchEnabled && settings.toolInstructions?.webSearch) {
+                            instructions += `\n- **Web Search:** ${settings.toolInstructions.webSearch}`;
+                        }
+                        
+                        if (settings.tools.weatherEnabled && settings.toolInstructions?.weather) {
+                            instructions += `\n- **Weather:** ${settings.toolInstructions.weather}`;
+                        }
+                        
+                        if (settings.tools.flightSearchEnabled && settings.toolInstructions?.flight) {
+                            instructions += `\n- **Flight Search:** ${settings.toolInstructions.flight}`;
+                        }
+                        
+                        if (settings.tools.cameraEnabled && settings.toolInstructions?.camera) {
+                            instructions += `\n- **Image Analysis:** ${settings.toolInstructions.camera}`;
+                        }
+                    }
+                    
+                    instructions += `\n\nFormatting: Use markdown for rich responses. Include images, links, and format text appropriately.`;
+                    instructions += `\nLanguage: ENGLISH ONLY - no exceptions.`;
+
+                    // Build tools array based on settings
+                    const enabledTools = [];
+                    if (settings.tools?.ragEnabled) {
+                        enabledTools.push(searchDocumentsTool);
+                    }
+                    if (settings.tools?.webSearchEnabled) {
+                        enabledTools.push(googleSearchTool);
+                    }
+                    if (settings.tools?.weatherEnabled) {
+                        enabledTools.push(weatherTool);
+                    }
+                    if (settings.tools?.flightSearchEnabled) {
+                        enabledTools.push(flightSearchTool);
+                    }
+                    if (settings.tools?.cameraEnabled) {
+                        enabledTools.push(imageAnalysisTool);
+                    }
+                    
+                    // Add instruction about camera/image analysis
+                    if (settings.tools?.cameraEnabled) {
+                        instructions += `\n\nWhen users ask about what you see or to look at something through the camera, use the analyze_camera tool. Don't try to see images directly - always use the tool.`;
+                    }
+
+                    // Create agent with tools array in constructor
+                    agent = new RealtimeAgent({
+                        name: 'Assistant',
+                        instructions: instructions,
+                        tools: enabledTools
+                    });
+
+                    // Create WebRTC transport
+                    transport = new OpenAIRealtimeWebRTC();
+                    
+                    // Create session with transcription enabled
+                    updateStatus('Connecting...', false);
+                    
+                    session = new RealtimeSession(agent, {
+                        model: 'gpt-realtime',
+                        transport: transport,
+                        input_audio_transcription: { model: 'whisper-1' },
+                        turn_detection: { type: 'server_vad' }
+                    });
+
+                    // Set up event handlers
+                    setupEventHandlers();
+
+                    // Connect with ephemeral key
+                    await session.connect({ 
+                        apiKey: data.ephemeralKey || data.value 
+                    });
+
+                    isConnected = true;
+                    updateStatus('Connected', true);
+                    
+                    if (uploadedDocuments.length > 0) {
+                        showStatusMessage(`✅ Voice assistant ready! ${uploadedDocuments.length} document(s) loaded for RAG.`);
+                    } else {
+                        showStatusMessage('✅ Voice assistant ready! Upload documents to enable RAG.');
+                    }
+                    
+                    // Enable controls
+                    elements.micButton.disabled = false;
+                    elements.cameraButton.disabled = false;
+                    elements.textInput.disabled = false;
+                    elements.sendButton.disabled = false;
+
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    showError(`Failed to initialize: ${error.message}`);
+                    updateStatus('Error', false);
+                    showStatusMessage(`❌ Error: ${error.message}`);
+                }
+            }
+
+            // Set up comprehensive event handlers
+            function setupEventHandlers() {
+                // Listen for all transport events
+                if (transport) {
+                    // Selective logging - comment out for less noise
+                    // transport.on('*', (event) => {
+                    //     console.log('Event received:', event.type || 'unknown', event);
+                    // });
+
+                    // Conversation item updates (for transcriptions)
+                    // Comment out to avoid duplicates - handled by specific transcript events
+                    /*
+                    transport.on('item_update', (item) => {
+                        // // console.log('Item update:', item);
+                        if (item.type === 'message') {
+                            if (item.role === 'user' && item.content) {
+                                // User message from transcription
+                                const text = item.content.find(c => c.type === 'input_text' || c.transcript);
+                                if (text && (text.text || text.transcript)) {
+                                    addMessage('user', text.text || text.transcript);
+                                    // Bubble removed
+                                }
+                            } else if (item.role === 'assistant' && item.content) {
+                                // Assistant message
+                                const text = item.content.find(c => c.type === 'text' || c.transcript);
+                                if (text && (text.text || text.transcript)) {
+                                    addMessage('assistant', text.text || text.transcript);
+                                }
+                            }
+                        }
+                    });
+                    */
+                    
+                    // Audio transcript deltas (real-time transcription)
+                    transport.on('audio_transcript_delta', (event) => {
+                        // console.log('Audio transcript delta:', event);  // Commented out to reduce console noise
+                        if (event.delta) {
+                            currentAssistantMessage += event.delta;
+                            
+                            // Create message div if needed
+                            if (!currentAssistantMessageDiv && currentAssistantMessage.trim()) {
+                                currentAssistantMessageDiv = document.createElement('div');
+                                currentAssistantMessageDiv.className = 'message assistant';
+                                
+                                const time = new Date().toLocaleTimeString();
+                                currentAssistantMessageDiv.innerHTML = `
+                                    <div class="message-header">
+                                        <span class="message-role">Assistant</span>
+                                        <span class="message-time">${time}</span>
+                                    </div>
+                                    <div class="message-content">
+                                        ${renderContent(currentAssistantMessage)}
+                                    </div>
+                                `;
+                                
+                                // Clear placeholder if exists
+                                const placeholder = elements.conversation.querySelector('div[style*="text-align: center"]');
+                                if (placeholder) {
+                                    placeholder.remove();
+                                }
+                                
+                                // Insert in correct position based on timestamp
+                                const messages = elements.conversation.querySelectorAll('.message');
+                                let inserted = false;
+                                
+                                // Find the right position to insert based on timestamp order
+                                for (let i = messages.length - 1; i >= 0; i--) {
+                                    const msg = messages[i];
+                                    // If this is a user message or earlier assistant message, insert after it
+                                    if (msg !== currentAssistantMessageDiv) {
+                                        msg.insertAdjacentElement('afterend', currentAssistantMessageDiv);
+                                        inserted = true;
+                                        break;
+                                    }
+                                }
+                                
+                                // If not inserted (first message or no existing messages), append
+                                if (!inserted) {
+                                    elements.conversation.appendChild(currentAssistantMessageDiv);
+                                }
+                                
+                                elements.conversation.scrollTop = elements.conversation.scrollHeight;
+                            } else if (currentAssistantMessageDiv) {
+                                // Update existing message div
+                                const contentDiv = currentAssistantMessageDiv.querySelector('.message-content');
+                                if (contentDiv) {
+                                    contentDiv.innerHTML = renderContent(currentAssistantMessage);
+                                    elements.conversation.scrollTop = elements.conversation.scrollHeight;
+                                }
+                            }
+                        }
+                        // Bubble removed - message already shown inline
+                    });
+
+                    // Audio done event - only clear UI, don't add message here
+                    transport.on('audio_done', () => {
+                        // // console.log('Audio done');
+                        // Don't add message here - it's already added by response.audio_transcript.done
+                        currentAssistantMessage = '';
+                        // Bubble removed
+                        elements.visualizer.classList.remove('active', 'speaking');
+                    });
+
+                    // Response text events (without prefix)
+                    transport.on('response.text.delta', (event) => {
+                        // console.log('Text delta:', event);
+                        currentAssistantMessage += event.delta || '';
+                        // Bubble removed - message already shown inline
+                    });
+
+                    // Comment out to avoid duplicates - using audio_transcript events instead
+                    /*
+                    transport.on('response.text.done', (event) => {
+                        // console.log('Text done:', event);
+                        if (event.text) {
+                            addMessage('assistant', event.text);
+                        }
+                        // Bubble removed
+                    });
+                    */
+
+                    transport.on('response.audio_transcript.delta', (event) => {
+                        // // console.log('Assistant audio transcript delta:', event);  // Commented out
+                        currentAssistantMessage += event.delta || '';
+                        
+                        // Update both bubble and conversation UI
+                        // Bubble removed - message already shown inline
+                        
+                        // Create or update message div in conversation UI
+                        if (!currentAssistantMessageDiv && currentAssistantMessage.trim()) {
+                            // Create new message div for assistant
+                            currentAssistantMessageDiv = document.createElement('div');
+                            currentAssistantMessageDiv.className = 'message assistant';
+                            
+                            const time = new Date().toLocaleTimeString();
+                            currentAssistantMessageDiv.innerHTML = `
+                                <div class="message-header">
+                                    <span class="message-role">Assistant</span>
+                                    <span class="message-time">${time}</span>
+                                </div>
+                                <div class="message-content">
+                                    ${renderContent(currentAssistantMessage)}
+                                </div>
+                            `;
+                            
+                            // Clear placeholder if exists
+                            const placeholder = elements.conversation.querySelector('div[style*="text-align: center"]');
+                            if (placeholder) {
+                                placeholder.remove();
+                            }
+                            
+                            // Insert in correct position based on timestamp
+                            const messages = elements.conversation.querySelectorAll('.message');
+                            let inserted = false;
+                            
+                            // Find the right position to insert based on timestamp order
+                            for (let i = messages.length - 1; i >= 0; i--) {
+                                const msg = messages[i];
+                                // If this is a user message or earlier assistant message, insert after it
+                                if (msg !== currentAssistantMessageDiv) {
+                                    msg.insertAdjacentElement('afterend', currentAssistantMessageDiv);
+                                    inserted = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If not inserted (first message or no existing messages), append
+                            if (!inserted) {
+                                elements.conversation.appendChild(currentAssistantMessageDiv);
+                            }
+                            
+                            elements.conversation.scrollTop = elements.conversation.scrollHeight;
+                        } else if (currentAssistantMessageDiv) {
+                            // Update existing message div
+                            const contentDiv = currentAssistantMessageDiv.querySelector('.message-content');
+                            if (contentDiv) {
+                                contentDiv.innerHTML = renderContent(currentAssistantMessage);
+                                elements.conversation.scrollTop = elements.conversation.scrollHeight;
+                            }
+                        }
+                    });
+
+                    transport.on('response.audio_transcript.done', (event) => {
+                        // console.log('Assistant audio transcript done:', event);  // Reduced logging
+                        if (event.transcript) {
+                            if (currentAssistantMessageDiv) {
+                                // Final update to ensure complete message is displayed
+                                const contentDiv = currentAssistantMessageDiv.querySelector('.message-content');
+                                if (contentDiv) {
+                                    contentDiv.innerHTML = renderContent(event.transcript);
+                                }
+                            } else {
+                                // Always add message if div wasn't created
+                                addMessage('assistant', event.transcript);
+                            }
+                            
+                            // Store in conversation history
+                            conversation.push({ 
+                                role: 'assistant', 
+                                content: event.transcript, 
+                                time: new Date().toLocaleTimeString() 
+                            });
+                        }
+                        
+                        // Reset for next message
+                        currentAssistantMessage = '';
+                        currentAssistantMessageDiv = null;
+                        // Bubble removed
+                    });
+
+                    // Speech detection events
+                    transport.on('input_audio_buffer.speech_started', (event) => {
+                        // console.log('Speech started');
+                        elements.visualizer.classList.add('active', 'listening');
+                        elements.micButton.classList.add('listening');
+                        // Status shown inline
+                        // Bubble removed
+                    });
+
+                    transport.on('input_audio_buffer.speech_stopped', (event) => {
+                        // console.log('Speech stopped');
+                        elements.visualizer.classList.remove('listening');
+                        elements.visualizer.classList.add('thinking');
+                        elements.micButton.classList.remove('listening');
+                        // Status shown inline
+                    });
+
+                    transport.on('input_audio_buffer.committed', (event) => {
+                        // console.log('Audio buffer committed');
+                    });
+                    
+                    // User input transcription events
+                    let currentUserMessage = '';
+                    transport.on('conversation.item.input_audio_transcription.completed', (event) => {
+                        // console.log('User audio transcription completed:', event);  // Reduced logging
+                        if (event.transcript) {
+                            addMessage('user', event.transcript);
+                            currentUserMessage = '';
+                        }
+                    });
+                    
+                    transport.on('conversation.item.input_audio_transcription.failed', (event) => {
+                        console.error('User transcription failed:', event);
+                        currentUserMessage = '';
+                    });
+
+                    // Turn events (from SDK)
+                    transport.on('turn_started', (event) => {
+                        // console.log('Turn started:', event);
+                        currentAssistantMessage = '';
+                        elements.visualizer.classList.add('active', 'speaking');
+                    });
+
+                    transport.on('turn_done', (event) => {
+                        // console.log('Turn done:', event);
+                        elements.visualizer.classList.remove('active', 'speaking', 'thinking');
+                        // Bubble removed
+                    });
+
+                    // Response events
+                    transport.on('response.created', (event) => {
+                        // console.log('Response created:', event);  // Reduced logging
+                        currentAssistantMessage = '';
+                        // Don't reset currentAssistantMessageDiv here - let it be created when transcript arrives
+                        elements.visualizer.classList.add('active', 'thinking');
+                    });
+
+                    transport.on('response.done', (event) => {
+                        // console.log('Response done:', event);  // Reduced logging
+                        elements.visualizer.classList.remove('active', 'speaking', 'thinking');
+                        // Bubble removed
+                    });
+
+                    transport.on('response.output_item.added', (event) => {
+                        // console.log('Output item added:', event);  // Reduced logging
+                        elements.visualizer.classList.remove('thinking');
+                        elements.visualizer.classList.add('active', 'speaking');
+                    });
+
+                    transport.on('response.output_item.done', (event) => {
+                        // console.log('Output item done:', event);  // Reduced logging
+                        if (event.item?.type === 'function_call') {
+                            console.log('Tool call completed:', event.item.name, event.item.arguments);
+                            addMessage('system', `✅ Tool ${event.item.name} executed`);
+                        }
+                    });
+
+                    // Tool/Function events
+                    transport.on('response.function_call_arguments.started', (event) => {
+                        console.log('Function call started:', event);
+                        elements.visualizer.classList.add('active', 'thinking');
+                    });
+
+                    transport.on('response.function_call_arguments.done', (event) => {
+                        console.log('Function call done:', event);
+                        if (event.name) {
+                            addMessage('system', `🔧 Calling tool: ${event.name}`);
+                        }
+                        elements.visualizer.classList.remove('thinking');
+                    });
+
+                    // Error events
+                    transport.on('error', (error) => {
+                        console.error('Error event:', error);
+                        const message = error.error?.message || error.message || 'An error occurred';
+                        showError(message);
+                        elements.visualizer.classList.remove('active');
+                    });
+
+                    // Connection events
+                    transport.on('connection_change', (status) => {
+                        // console.log('Connection status:', status);
+                        if (status === 'disconnected') {
+                            updateStatus('Disconnected', false);
+                            isConnected = false;
+                            elements.micButton.disabled = true;
+                            elements.textInput.disabled = true;
+                            elements.sendButton.disabled = true;
+                            elements.visualizer.classList.remove('active');
+                            showStatusMessage('🔌 Disconnected from server');
+                        } else if (status === 'connected') {
+                            updateStatus('Connected', true);
+                            isConnected = true;
+                            elements.micButton.disabled = false;
+                            elements.textInput.disabled = false;
+                            elements.sendButton.disabled = false;
+                            showStatusMessage('✅ Connected and ready');
+                        }
+                    });
+                }
+            }
+
+            // Mic button handling - Note: WebRTC VAD is always listening when connected
+            // The mic button is here for user feedback and manual control
+            elements.micButton.addEventListener('click', async () => {
+                if (!isConnected && !elements.micButton.disabled) {
+                    // Try to reconnect if disconnected
+                    await initialize();
+                    return;
+                }
+
+                // The mic is always listening due to WebRTC VAD
+                // This button provides visual feedback and can trigger manual responses
+                showStatusMessage('🎤 Voice is always active when connected. Just speak naturally!');
+                
+                // Flash the button to show it was clicked
+                elements.micButton.classList.add('active');
+                setTimeout(() => {
+                    elements.micButton.classList.remove('active');
+                }, 200);
+            });
+
+            // Mute button
+            elements.muteButton.addEventListener('click', () => {
+                isMuted = !isMuted;
+                if (session) {
+                    if (isMuted) {
+                        // Mute audio output
+                        elements.muteButton.textContent = '🔊 Unmute';
+                        elements.muteButton.classList.add('active');
+                        showStatusMessage('🔇 Audio output muted');
+                    } else {
+                        // Unmute audio output
+                        elements.muteButton.textContent = '🔇 Mute';
+                        elements.muteButton.classList.remove('active');
+                        showStatusMessage('🔊 Audio output unmuted');
+                    }
+                }
+            });
+
+            // Interrupt button
+            elements.interruptButton.addEventListener('click', () => {
+                if (transport && transport.interrupt) {
+                    try {
+                        // console.log('Interrupting response');
+                        transport.interrupt(); // Use SDK's interrupt method
+                        elements.visualizer.classList.remove('active', 'speaking', 'listening', 'thinking');
+                        // Bubble removed
+                        currentAssistantMessage = '';
+                        showStatusMessage('⏹️ Response interrupted');
+                    } catch (error) {
+                        console.error('Interrupt error:', error);
+                    }
+                }
+            });
+
+            // Text input handling
+            elements.textInput.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendText();
+                }
+            });
+
+            elements.sendButton.addEventListener('click', sendText);
+
+            async function sendText() {
+                const text = elements.textInput.value.trim();
+                if (!text || !isConnected) return;
+
+                elements.textInput.value = '';
+                addMessage('user', text);
+                
+                // Send text message via transport
+                if (transport && transport.sendEvent) {
+                    transport.sendEvent({
+                        type: 'conversation.item.create',
+                        item: {
+                            type: 'message',
+                            role: 'user',
+                            content: [{ type: 'input_text', text: text }]
+                        }
+                    });
+                    
+                    // Trigger response
+                    transport.sendEvent({ type: 'response.create' });
+                }
+            }
+
+            // Utility functions
+            window.clearConversation = function() {
+                elements.conversation.innerHTML = `
+                    <div style="text-align: center; padding: 60px 20px; color: #666;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">🎤</div>
+                        <p>Click the microphone to start talking</p>
+                        <p style="margin-top: 10px; font-size: 14px;">Or type a message below</p>
+                        <p style="margin-top: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 3px solid #667eea;">
+                            💡 <strong>Tip:</strong> Upload documents using the 📚 Documents button to enable RAG (Retrieval-Augmented Generation). 
+                            The assistant will be able to answer questions about your uploaded content!
+                        </p>
+                    </div>
+                `;
+                conversation = [];
+                currentAssistantMessage = '';
+                showStatusMessage('🗑️ Conversation cleared');
+            };
+
+            window.interrupt = function() {
+                if (elements.interruptButton) {
+                    elements.interruptButton.click();
+                }
+            };
+
+            window.downloadTranscript = function() {
+                const transcript = conversation.map(msg => 
+                    `[${msg.time}] ${msg.role.toUpperCase()}: ${msg.content}`
+                ).join('\n\n');
+                
+                const blob = new Blob([transcript], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `conversation-${new Date().toISOString()}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatusMessage('💾 Transcript downloaded');
+            };
+
+            // Initialize on load
+            initialize();
+            
+        }).catch(error => {
+            console.error('Failed to load SDK:', error);
+            document.getElementById('error').textContent = 'Failed to load SDK. Check console for details.';
+            document.getElementById('error').classList.add('active');
+        });
+    </script>
+</body>
+</html>

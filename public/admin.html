@@ -696,6 +696,43 @@
                     
                     <div class="form-group">
                         <label>
+                            <input type="checkbox" id="cameraEnabled" checked> Enable Camera/Image Analysis
+                        </label>
+                    </div>
+                    
+                    <!-- Camera Settings (shown when camera is enabled) -->
+                    <div id="cameraSettingsGroup" style="background: #f0f0f0; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <h4 style="margin-top: 0;">Camera Settings</h4>
+                        
+                        <div class="form-group">
+                            <label>Resolution</label>
+                            <select id="cameraResolution" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                                <option value="640x480">640x480 (VGA)</option>
+                                <option value="1280x720">1280x720 (HD)</option>
+                                <option value="1920x1080" selected>1920x1080 (Full HD)</option>
+                                <option value="2560x1440">2560x1440 (2K)</option>
+                                <option value="3840x2160">3840x2160 (4K)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Image Quality: <span id="cameraQualityValue">92%</span></label>
+                            <input type="range" id="cameraQuality" min="0.5" max="1.0" step="0.05" value="0.92" style="width: 100%;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Frame Rate</label>
+                            <select id="cameraFrameRate" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                                <option value="15">15 FPS</option>
+                                <option value="24">24 FPS</option>
+                                <option value="30" selected>30 FPS</option>
+                                <option value="60">60 FPS</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
                             <input type="checkbox" id="moderationEnabled" checked> Enable Content Moderation
                         </label>
                     </div>
@@ -844,6 +881,15 @@
                         <div id="weatherStatus" class="status pending">Not validated</div>
                     </div>
                 </div>
+            </div>
+            
+            <!-- Custom APIs Section -->
+            <div class="card" style="margin-top: 20px;">
+                <h2>Custom API Configurations</h2>
+                <div id="custom-apis-list" style="margin-bottom: 15px;">
+                    <!-- Custom APIs will be rendered here -->
+                </div>
+                <button class="button primary" onclick="openCustomApiModal()">+ Add Custom API</button>
             </div>
             
             <div style="margin-top: 20px; text-align: center;">
@@ -998,6 +1044,78 @@
             </div>
         </div>
     </div>
+    
+    <!-- Custom API Modal -->
+    <div id="custom-api-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCustomApiModal()">&times;</span>
+            <h2>Configure Custom API</h2>
+            <form id="custom-api-form" onsubmit="saveCustomApi(event)">
+                <div class="form-group">
+                    <label for="custom-api-name">API Name</label>
+                    <input type="text" id="custom-api-name" placeholder="e.g., stripe, twilio" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="custom-api-category">Category</label>
+                    <select id="custom-api-category">
+                        <option value="payment">Payment</option>
+                        <option value="communication">Communication</option>
+                        <option value="database">Database</option>
+                        <option value="analytics">Analytics</option>
+                        <option value="social">Social Media</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="custom-api-endpoint">API Endpoint</label>
+                    <input type="text" id="custom-api-endpoint" placeholder="https://api.example.com/v1/" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>API Credentials</label>
+                    <div id="api-credentials">
+                        <div class="credential-row" style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <input type="text" placeholder="Key name (e.g., apiKey)" class="cred-key" style="flex: 1;">
+                            <input type="password" placeholder="Value" class="cred-value" style="flex: 2;">
+                            <button type="button" onclick="removeCredential(this)" class="button danger small">Remove</button>
+                        </div>
+                    </div>
+                    <button type="button" onclick="addCredential()" class="button secondary small">+ Add Credential</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="custom-tool-instruction">Tool Instructions</label>
+                    <textarea id="custom-tool-instruction" rows="5" placeholder="Instructions for the AI on how to use this API...">Use this API for [purpose]. Always [specific behavior].
+When users ask about [topic], use this tool to [action].
+Format responses with [formatting guidelines].</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="custom-tool-params">Tool Parameters Schema (JSON)</label>
+                    <textarea id="custom-tool-params" rows="8">{
+  "type": "object",
+  "properties": {
+    "query": { "type": "string", "description": "Query parameter" }
+  },
+  "required": ["query"]
+}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="custom-api-enabled" checked> Enable this API
+                    </label>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button type="button" onclick="closeCustomApiModal()" class="button secondary">Cancel</button>
+                    <button type="submit" class="button primary">Save API</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <script>
         // Tab switching
@@ -1062,6 +1180,19 @@
                     document.getElementById('webSearchEnabled').checked = settings.tools?.webSearchEnabled !== false;
                     document.getElementById('flightSearchEnabled').checked = settings.tools?.flightSearchEnabled !== false;
                     document.getElementById('weatherEnabled').checked = settings.tools?.weatherEnabled !== false;
+                    document.getElementById('cameraEnabled').checked = settings.tools?.cameraEnabled !== false;
+                    
+                    // Load camera settings
+                    if (settings.cameraSettings) {
+                        const res = settings.cameraSettings.width + 'x' + settings.cameraSettings.height;
+                        if (document.getElementById('cameraResolution').querySelector(`option[value="${res}"]`)) {
+                            document.getElementById('cameraResolution').value = res;
+                        }
+                        document.getElementById('cameraQuality').value = settings.cameraSettings.quality || 0.92;
+                        document.getElementById('cameraQualityValue').textContent = Math.round((settings.cameraSettings.quality || 0.92) * 100) + '%';
+                        document.getElementById('cameraFrameRate').value = settings.cameraSettings.frameRate || 30;
+                    }
+                    
                     document.getElementById('moderationEnabled').checked = settings.moderationEnabled !== false;
                     document.getElementById('loggingEnabled').checked = settings.loggingEnabled !== false;
                 }
@@ -1103,6 +1234,7 @@
 
         // Save settings
         async function saveSettings() {
+            console.log('saveSettings called!');
             const settings = {
                 voice: document.getElementById('voice').value,
                 model: document.getElementById('model').value,
@@ -1119,11 +1251,20 @@
                     ragEnabled: document.getElementById('ragEnabled').checked,
                     webSearchEnabled: document.getElementById('webSearchEnabled').checked,
                     flightSearchEnabled: document.getElementById('flightSearchEnabled').checked,
-                    weatherEnabled: document.getElementById('weatherEnabled').checked
+                    weatherEnabled: document.getElementById('weatherEnabled').checked,
+                    cameraEnabled: document.getElementById('cameraEnabled').checked
+                },
+                cameraSettings: {
+                    width: parseInt(document.getElementById('cameraResolution').value.split('x')[0]),
+                    height: parseInt(document.getElementById('cameraResolution').value.split('x')[1]),
+                    quality: parseFloat(document.getElementById('cameraQuality').value),
+                    frameRate: parseInt(document.getElementById('cameraFrameRate').value)
                 },
                 moderationEnabled: document.getElementById('moderationEnabled').checked,
                 loggingEnabled: document.getElementById('loggingEnabled').checked
             };
+            
+            console.log('Settings to save:', settings);
             
             try {
                 const response = await fetch('/api/settings', {
@@ -1132,10 +1273,14 @@
                     body: JSON.stringify(settings)
                 });
                 
+                console.log('Save response status:', response.status);
+                
                 if (response.ok) {
                     showAlert('Settings saved successfully!', 'success');
+                    console.log('Settings saved successfully!');
                 } else {
                     showAlert('Error saving settings', 'error');
+                    console.error('Error saving settings - status:', response.status);
                 }
             } catch (error) {
                 showAlert('Error saving settings', 'error');
@@ -1430,10 +1575,260 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
+        // Custom API Management Functions
+        let customApis = {};
+        
+        async function loadCustomApis() {
+            try {
+                const response = await fetch('/api/apikeys');
+                const apis = await response.json();
+                
+                // Filter out standard APIs to get custom ones
+                const standardApis = ['openai', 'google', 'amadeus', 'openweather'];
+                customApis = {};
+                
+                for (const [key, value] of Object.entries(apis)) {
+                    if (!standardApis.includes(key)) {
+                        customApis[key] = value;
+                    }
+                }
+                
+                renderCustomApis();
+            } catch (error) {
+                console.error('Failed to load custom APIs:', error);
+            }
+        }
+        
+        function renderCustomApis() {
+            const container = document.getElementById('custom-apis-list');
+            
+            if (Object.keys(customApis).length === 0) {
+                container.innerHTML = '<p style="color: #666;">No custom APIs configured yet</p>';
+                return;
+            }
+            
+            container.innerHTML = Object.entries(customApis).map(([name, config]) => `
+                <div class="api-group">
+                    <div class="api-header">
+                        <span class="api-title">${name.charAt(0).toUpperCase() + name.slice(1)} API</span>
+                        <div>
+                            <button class="validate-btn" onclick="validateCustomApi('${name}')">Validate</button>
+                            <button class="button danger small" onclick="deleteCustomApi('${name}')">Delete</button>
+                        </div>
+                    </div>
+                    <div style="color: #999; font-size: 14px; margin: 10px 0;">
+                        Category: ${config.category || 'other'}<br>
+                        ${config.endpoint ? `Endpoint: ${config.endpoint}` : ''}
+                        ${config.enabled ? '<span style="color: #28a745;">✓ Enabled</span>' : '<span style="color: #dc3545;">✗ Disabled</span>'}
+                    </div>
+                    ${config.instruction ? `<div style="background: #1e1f21; padding: 10px; border-radius: 4px; margin-top: 10px;">
+                        <strong>Tool Instructions:</strong><br>
+                        <pre style="white-space: pre-wrap; color: #888; font-size: 12px;">${config.instruction}</pre>
+                    </div>` : ''}
+                </div>
+            `).join('');
+        }
+        
+        function openCustomApiModal() {
+            document.getElementById('custom-api-modal').style.display = 'block';
+            document.getElementById('custom-api-form').reset();
+        }
+        
+        function closeCustomApiModal() {
+            document.getElementById('custom-api-modal').style.display = 'none';
+        }
+        
+        function addCredential() {
+            const container = document.getElementById('api-credentials');
+            const row = document.createElement('div');
+            row.className = 'credential-row';
+            row.style = 'display: flex; gap: 10px; margin-bottom: 10px;';
+            row.innerHTML = `
+                <input type="text" placeholder="Key name (e.g., apiKey)" class="cred-key" style="flex: 1;">
+                <input type="password" placeholder="Value" class="cred-value" style="flex: 2;">
+                <button type="button" onclick="removeCredential(this)" class="button danger small">Remove</button>
+            `;
+            container.appendChild(row);
+        }
+        
+        function removeCredential(button) {
+            button.parentElement.remove();
+        }
+        
+        async function saveCustomApi(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('custom-api-name').value.toLowerCase().replace(/\s+/g, '_');
+            const category = document.getElementById('custom-api-category').value;
+            const endpoint = document.getElementById('custom-api-endpoint').value;
+            const instruction = document.getElementById('custom-tool-instruction').value;
+            const enabled = document.getElementById('custom-api-enabled').checked;
+            
+            // Collect credentials
+            const credentials = {};
+            const credRows = document.querySelectorAll('.credential-row');
+            credRows.forEach(row => {
+                const key = row.querySelector('.cred-key').value;
+                const value = row.querySelector('.cred-value').value;
+                if (key && value) {
+                    credentials[key] = value;
+                }
+            });
+            
+            // Parse tool parameters
+            let toolParams;
+            try {
+                toolParams = JSON.parse(document.getElementById('custom-tool-params').value);
+            } catch (error) {
+                showAlert('Invalid tool parameters JSON', 'error');
+                return;
+            }
+            
+            // Create API configuration
+            const apiConfig = {
+                ...credentials,
+                category,
+                endpoint,
+                enabled,
+                instruction,
+                toolParams
+            };
+            
+            // Save to custom APIs
+            customApis[name] = apiConfig;
+            
+            // Update tool instructions in settings if needed
+            await updateToolInstructions(name, instruction);
+            
+            // Save all API keys including custom
+            await saveAllApiKeys();
+            
+            closeCustomApiModal();
+            renderCustomApis();
+            showAlert(`Custom API '${name}' saved successfully`, 'success');
+        }
+        
+        async function updateToolInstructions(apiName, instruction) {
+            try {
+                // Get current settings
+                const settingsResponse = await fetch('/api/settings');
+                const settings = await settingsResponse.json();
+                
+                // Update tool instructions
+                if (!settings.toolInstructions) {
+                    settings.toolInstructions = {};
+                }
+                settings.toolInstructions[apiName] = instruction;
+                
+                // Save updated settings
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+            } catch (error) {
+                console.error('Failed to update tool instructions:', error);
+            }
+        }
+        
+        async function deleteCustomApi(name) {
+            if (confirm(`Delete custom API '${name}'?`)) {
+                delete customApis[name];
+                await saveAllApiKeys();
+                renderCustomApis();
+                showAlert(`Custom API '${name}' deleted`, 'success');
+            }
+        }
+        
+        async function validateCustomApi(name) {
+            // Custom validation logic based on API type
+            showAlert(`Validating ${name} API...`, 'info');
+            // You can implement specific validation logic here
+        }
+        
+        async function saveAllApiKeys() {
+            const apis = {
+                openai: {
+                    apiKey: document.getElementById('openaiKey').value,
+                    organization: document.getElementById('openaiOrg').value,
+                    enabled: true,
+                    category: 'ai'
+                },
+                google: {
+                    apiKey: document.getElementById('googleKey').value,
+                    searchEngineId: document.getElementById('googleSearchEngineId').value,
+                    enabled: true,
+                    category: 'search'
+                },
+                amadeus: {
+                    clientId: document.getElementById('amadeusClientId').value,
+                    clientSecret: document.getElementById('amadeusClientSecret').value,
+                    sandbox: document.getElementById('amadeusSandbox').checked,
+                    enabled: true,
+                    category: 'travel'
+                },
+                openweather: {
+                    apiKey: document.getElementById('weatherKey').value,
+                    units: document.getElementById('weatherUnits').value,
+                    enabled: true,
+                    category: 'weather'
+                },
+                ...customApis  // Include all custom APIs
+            };
+            
+            try {
+                const response = await fetch('/api/apikeys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(apis)
+                });
+                
+                if (response.ok) {
+                    showAlert('All API configurations saved', 'success');
+                } else {
+                    showAlert('Error saving API configurations', 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving API configurations', 'error');
+            }
+        }
+        
+        // Update the original saveApiKeys to use saveAllApiKeys
+        async function saveApiKeys() {
+            await saveAllApiKeys();
+        }
+        
+        // Camera settings event handlers
+        function setupCameraSettings() {
+            const cameraCheckbox = document.getElementById('cameraEnabled');
+            const cameraSettingsGroup = document.getElementById('cameraSettingsGroup');
+            const qualitySlider = document.getElementById('cameraQuality');
+            const qualityValue = document.getElementById('cameraQualityValue');
+            
+            // Toggle camera settings visibility
+            if (cameraCheckbox) {
+                cameraCheckbox.addEventListener('change', (e) => {
+                    cameraSettingsGroup.style.display = e.target.checked ? 'block' : 'none';
+                });
+                
+                // Set initial state
+                cameraSettingsGroup.style.display = cameraCheckbox.checked ? 'block' : 'none';
+            }
+            
+            // Update quality display value
+            if (qualitySlider) {
+                qualitySlider.addEventListener('input', (e) => {
+                    qualityValue.textContent = Math.round(e.target.value * 100) + '%';
+                });
+            }
+        }
+        
         // Load settings on page load
         window.addEventListener('load', () => {
             loadSettings();
             loadDocuments();
+            loadCustomApis();
+            setupCameraSettings();
         });
     </script>
 </body>
