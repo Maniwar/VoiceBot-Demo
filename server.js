@@ -8,7 +8,7 @@ import winston from 'winston';
 import configManager from './src/services/configManager.js';
 import documentManager from './src/services/documentManager.js';
 import { GoogleSearchTool } from './src/tools/googleSearchTool.js';
-import { WeatherTool } from './src/tools/weatherTool.js';
+import { FreeWeatherTool } from './src/tools/freeWeatherTool.js';
 import { FlightSearchTool } from './src/tools/flightSearchTool.js';
 
 // Load environment variables
@@ -80,7 +80,7 @@ app.post('/api/session', async (req, res) => {
       body: JSON.stringify({
         session: {
           type: 'realtime',
-          model: configManager.getSettings()?.model || 'gpt-4o-realtime-preview',
+          model: configManager.getSettings()?.model || 'gpt-realtime',
           instructions: configManager.getSettings()?.instructions || 'You are a helpful, witty, and friendly voice assistant. Respond naturally and conversationally.',
           audio: {
             output: {

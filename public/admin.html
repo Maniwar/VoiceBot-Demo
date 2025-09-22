@@ -367,6 +367,195 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow: auto;
+        }
+
+        .modal-content {
+            background-color: #2a2b2e;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #888;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #f1f1f1;
+        }
+
+        /* Tool & Workflow Cards */
+        .tool-card, .workflow-card {
+            background: #1e1f21;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .tool-card:hover, .workflow-card:hover {
+            border-color: #0084ff;
+        }
+
+        .tool-header, .workflow-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .tool-name, .workflow-name {
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .tool-type {
+            background: #0084ff;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .tool-description, .workflow-description {
+            color: #999;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .tool-actions, .workflow-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .workflow-step {
+            background: #1e1f21;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .workflow-step-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .step-number {
+            background: #0084ff;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .step-remove {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            color: #ff4444;
+            cursor: pointer;
+        }
+
+        /* Small button styles */
+        .button.small {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .button.danger {
+            background: #ff4444;
+        }
+
+        .button.danger:hover {
+            background: #ff6666;
+        }
+
+        .button.success {
+            background: #44ff44;
+            color: #1e1f21;
+        }
+
+        .button.success:hover {
+            background: #66ff66;
+        }
+
+        /* Switch styles */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #333;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #0084ff;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
     </style>
 </head>
 <body>
@@ -410,8 +599,7 @@
                     <div class="form-group">
                         <label for="model">Model</label>
                         <select id="model">
-                            <option value="gpt-4o-realtime-preview" selected>GPT-4o Realtime Preview</option>
-                            <option value="gpt-realtime">GPT Realtime</option>
+                            <option value="gpt-realtime" selected>GPT Realtime</option>
                         </select>
                     </div>
                     
@@ -665,38 +853,122 @@
 
         <!-- Tools & Workflows Tab -->
         <div id="tools-tab" class="tab-content">
-            <div class="card">
-                <h2>Available Tools</h2>
-                <p>Configure which tools are available to the voice assistant</p>
-                
-                <div style="margin-top: 20px;">
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" checked> Document Search (RAG)
-                        </label>
-                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Search through uploaded documents</p>
+            <div class="main-grid">
+                <!-- Tools Configuration -->
+                <div class="card">
+                    <h2>Tool Definitions</h2>
+                    <p>Configure tools available to the voice assistant</p>
+                    
+                    <div id="tools-list" style="margin-top: 20px;">
+                        <!-- Tool cards will be dynamically loaded here -->
                     </div>
                     
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" checked> Web Search
-                        </label>
-                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Search the web using Google</p>
+                    <button class="button" onclick="addNewTool()" style="margin-top: 20px;">
+                        ➕ Add Custom Tool
+                    </button>
+                </div>
+
+                <!-- Workflows -->
+                <div class="card">
+                    <h2>Workflows</h2>
+                    <p>Create multi-step workflows for complex tasks</p>
+                    
+                    <div id="workflows-list" style="margin-top: 20px;">
+                        <!-- Workflow cards will be dynamically loaded here -->
                     </div>
                     
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" checked> Flight Search
-                        </label>
-                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Search for flights using Amadeus</p>
-                    </div>
+                    <button class="button" onclick="createNewWorkflow()" style="margin-top: 20px;">
+                        ➕ Create Workflow
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tool Editor Modal -->
+            <div id="tool-editor-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 800px;">
+                    <span class="close" onclick="closeToolEditor()">&times;</span>
+                    <h2>Tool Configuration</h2>
                     
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" checked> Weather Information
-                        </label>
-                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Get weather information</p>
-                    </div>
+                    <form id="tool-form">
+                        <div class="form-group">
+                            <label>Tool Name</label>
+                            <input type="text" id="tool-name" placeholder="e.g., search_documents" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="tool-description" rows="3" placeholder="What this tool does"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Tool Type</label>
+                            <select id="tool-type" onchange="updateToolTypeFields()">
+                                <option value="api">API Call</option>
+                                <option value="rag">RAG Search</option>
+                                <option value="function">Custom Function</option>
+                                <option value="agent">Agent Handoff</option>
+                            </select>
+                        </div>
+                        
+                        <div id="tool-config-fields">
+                            <!-- Dynamic fields based on tool type -->
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Parameters (JSON Schema)</label>
+                            <textarea id="tool-parameters" rows="10" placeholder='{"type": "object", "properties": {...}}'></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="tool-enabled" checked> Enabled
+                            </label>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" class="button secondary" onclick="closeToolEditor()">Cancel</button>
+                            <button type="submit" class="button">Save Tool</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Workflow Builder Modal -->
+            <div id="workflow-builder-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 900px;">
+                    <span class="close" onclick="closeWorkflowBuilder()">&times;</span>
+                    <h2>Workflow Builder</h2>
+                    
+                    <form id="workflow-form">
+                        <div class="form-group">
+                            <label>Workflow Name</label>
+                            <input type="text" id="workflow-name" placeholder="e.g., Book Flight with Weather Check" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="workflow-description" rows="3" placeholder="What this workflow accomplishes"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Trigger Phrases</label>
+                            <input type="text" id="workflow-triggers" placeholder="e.g., book a flight, plan my trip (comma-separated)">
+                        </div>
+                        
+                        <h3>Workflow Steps</h3>
+                        <div id="workflow-steps" style="margin-top: 20px;">
+                            <!-- Steps will be added dynamically -->
+                        </div>
+                        
+                        <button type="button" class="button secondary" onclick="addWorkflowStep()" style="margin-top: 10px;">
+                            ➕ Add Step
+                        </button>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                            <button type="button" class="button secondary" onclick="closeWorkflowBuilder()">Cancel</button>
+                            <button type="submit" class="button">Save Workflow</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -749,6 +1021,8 @@
             // Load data for the tab if needed
             if (tab === 'documents') {
                 loadDocuments();
+            } else if (tab === 'tools') {
+                loadToolsAndWorkflows();
             }
         }
 
@@ -772,7 +1046,7 @@
                     
                     // Populate form fields
                     document.getElementById('voice').value = settings.voice || 'shimmer';
-                    document.getElementById('model').value = settings.model || 'gpt-4o-realtime-preview';
+                    document.getElementById('model').value = settings.model || 'gpt-realtime';
                     document.getElementById('temperature').value = settings.temperature || 0.8;
                     document.getElementById('instructions').value = settings.instructions || '';
                     document.getElementById('greeting').value = settings.greeting || '';

@@ -3,18 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VoiceBot RAG Demo - OpenAI Realtime API</title>
-    <script>
-        // Save that we're in standard mode
-        localStorage.setItem('lastUsedMode', 'standard');
-        
-        // Check if should redirect to RTC based on preference
-        const preferredMode = localStorage.getItem('preferredMode');
-        const autoRedirect = localStorage.getItem('autoRedirectMode') === 'true';
-        if (preferredMode === 'rtc' && autoRedirect && !window.location.search.includes('force')) {
-            window.location.href = '/index_rtc.html';
-        }
-    </script>
+    <title>VoiceBot Demo - OpenAI Realtime API</title>
     <style>
         * {
             margin: 0;
@@ -36,7 +25,7 @@
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 1200px;
+            max-width: 800px;
             width: 100%;
             overflow: hidden;
         }
@@ -44,423 +33,273 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 30px;
+            padding: 40px 30px;
             text-align: center;
         }
         
-        .header h1 {
-            font-size: 2.5em;
+        h1 {
+            font-size: 36px;
             margin-bottom: 10px;
         }
         
-        .header p {
+        .subtitle {
+            font-size: 18px;
             opacity: 0.9;
-            font-size: 1.1em;
-        }
-        
-        .status-bar {
-            background: #f7f7f7;
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #dc3545;
-            animation: pulse 2s infinite;
-        }
-        
-        .status-dot.connected {
-            background: #28a745;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0;
-            min-height: 500px;
-        }
-        
-        .knowledge-panel {
-            background: #f8f9fa;
-            padding: 30px;
-            border-right: 1px solid #e0e0e0;
-        }
-        
-        .chat-panel {
-            padding: 30px;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .section-title {
-            font-size: 1.3em;
-            color: #333;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .upload-area {
-            border: 2px dashed #667eea;
-            border-radius: 10px;
-            padding: 40px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            background: white;
-        }
-        
-        .upload-area:hover {
-            background: #f0f0ff;
-            border-color: #764ba2;
-        }
-        
-        .upload-area.dragover {
-            background: #e0e0ff;
-            border-color: #764ba2;
-        }
-        
-        .upload-icon {
-            font-size: 48px;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-        
-        .file-list {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .file-item {
-            background: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .file-name {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .file-remove {
-            color: #dc3545;
-            cursor: pointer;
-            font-size: 20px;
-            transition: transform 0.2s;
-        }
-        
-        .file-remove:hover {
-            transform: scale(1.2);
-        }
-        
-        .transcript-area {
-            flex: 1;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            overflow-y: auto;
-            min-height: 300px;
-            max-height: 400px;
             margin-bottom: 20px;
         }
         
-        .message {
-            margin-bottom: 15px;
-            padding: 10px 15px;
-            border-radius: 10px;
-            animation: fadeIn 0.3s;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        .message.user {
-            background: #667eea;
-            color: white;
-            margin-left: 20%;
-            text-align: right;
-        }
-        
-        .message.assistant {
-            background: white;
-            margin-right: 20%;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .message-label {
-            font-size: 0.8em;
-            opacity: 0.7;
-            margin-bottom: 5px;
-        }
-        
-        .voice-controls {
+        .features {
             display: flex;
             justify-content: center;
             gap: 20px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-        }
-        
-        .voice-button {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            border: none;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 32px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .voice-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-        }
-        
-        .voice-button:active {
-            transform: scale(0.95);
-        }
-        
-        .voice-button.recording {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            animation: recordPulse 1.5s infinite;
-        }
-        
-        @keyframes recordPulse {
-            0% { box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4); }
-            50% { box-shadow: 0 4px 30px rgba(220, 53, 69, 0.8); }
-            100% { box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4); }
-        }
-        
-        .voice-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .visualizer {
-            height: 60px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 3px;
-            margin-bottom: 20px;
-        }
-        
-        .visualizer-bar {
-            width: 4px;
-            background: linear-gradient(to top, #667eea, #764ba2);
-            border-radius: 2px;
-            transition: height 0.1s;
-        }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 15px;
-            max-width: 400px;
-            text-align: center;
-        }
-        
-        .modal-button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 16px;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
         
-        #fileInput {
-            display: none;
-        }
-        
-        .stats {
+        .feature {
             display: flex;
-            gap: 20px;
-            margin-top: 20px;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
         }
         
-        .stat-item {
-            flex: 1;
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
+        .content {
+            padding: 40px;
+        }
+        
+        .demo-section {
             text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
         }
         
-        .stat-value {
+        .demo-title {
             font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
+            color: #333;
+            margin-bottom: 15px;
         }
         
-        .stat-label {
-            font-size: 12px;
+        .demo-description {
             color: #666;
-            margin-top: 5px;
+            margin-bottom: 30px;
+            line-height: 1.6;
         }
         
-        @media (max-width: 768px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
-            
-            .knowledge-panel {
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .button-card {
+            background: #f8f9fa;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            padding: 25px;
+            text-decoration: none;
+            color: #333;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .button-card:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+        
+        .button-card.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .button-card.primary:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+        
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .card-description {
+            font-size: 14px;
+            opacity: 0.8;
+            line-height: 1.5;
+        }
+        
+        .info-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 30px;
+        }
+        
+        .info-title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .info-icon {
+            color: #667eea;
+            font-size: 20px;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 14px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #28a745;
+            color: white;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 8px;
+            text-transform: uppercase;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header" style="position: relative;">
-            <div style="position: absolute; top: 20px; right: 20px; z-index: 1000; display: flex; gap: 10px;">
-                <a href="/index_rtc.html?force=true" onclick="localStorage.removeItem('preferredMode'); localStorage.removeItem('autoRedirectMode');" style="color: white; background: rgba(0,255,136,0.2); border: 1px solid rgba(0,255,136,0.3); padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block;" onmouseover="this.style.background='rgba(0,255,136,0.3)'" onmouseout="this.style.background='rgba(0,255,136,0.2)'">⚡ RTC Mode</a>
-                <a href="/mode-selector.html" onclick="localStorage.removeItem('preferredMode'); localStorage.removeItem('autoRedirectMode');" style="color: white; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🔄 Mode Selector</a>
+        <div class="header">
+            <h1>🎙️ VoiceBot Demo</h1>
+            <p class="subtitle">Real-time Voice Assistant with OpenAI Realtime API</p>
+            <div class="features">
+                <div class="feature">✨ WebRTC Audio</div>
+                <div class="feature">📚 RAG Support</div>
+                <div class="feature">🔧 Custom Tools</div>
+                <div class="feature">🌐 Web Search</div>
+                <div class="feature">☁️ Weather API</div>
             </div>
-            <h1>🎙️ VoiceBot RAG Demo</h1>
-            <p>Real-time voice assistant with knowledge base integration</p>
         </div>
         
-        <div class="status-bar">
-            <div class="status-indicator">
-                <span class="status-dot" id="statusDot"></span>
-                <span id="statusText">Disconnected</span>
+        <div class="content">
+            <div class="demo-section">
+                <h2 class="demo-title">Choose Your Experience</h2>
+                <p class="demo-description">
+                    Experience cutting-edge voice AI with OpenAI's Realtime API. Choose from our official SDK implementation
+                    or explore the admin panel to customize your assistant.
+                </p>
             </div>
-            <div id="modelInfo">Model: gpt-4o-realtime-preview</div>
-        </div>
-        
-        <div class="main-content">
-            <div class="knowledge-panel">
-                <h2 class="section-title">
-                    📚 Knowledge Base
-                </h2>
-                
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-icon">📁</div>
-                    <p><strong>Drop files here or click to upload</strong></p>
-                    <p style="margin-top: 10px; color: #666; font-size: 14px;">
-                        Supported: PDF, TXT, MD, JSON, Images (JPG, PNG, GIF, etc.)
-                    </p>
-                </div>
-                
-                <input type="file" id="fileInput" multiple accept=".pdf,.txt,.md,.json,.jpg,.jpeg,.png,.gif,.bmp,.webp">
-                
-                <div class="file-list" id="fileList"></div>
-                
-                <div class="stats">
-                    <div class="stat-item">
-                        <div class="stat-value" id="docCount">0</div>
-                        <div class="stat-label">Documents</div>
+            
+            <div class="button-grid">
+                <a href="/official-pattern.html" class="button-card primary">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-title">Voice Assistant <span class="badge">Recommended</span></div>
+                    <div class="card-description">
+                        Official SDK pattern with WebRTC, tools support, and real-time transcription
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="chunkCount">0</div>
-                        <div class="stat-label">Chunks</div>
+                </a>
+                
+                <a href="/admin.html" class="button-card">
+                    <div class="card-icon">⚙️</div>
+                    <div class="card-title">Admin Panel</div>
+                    <div class="card-description">
+                        Configure voice settings, manage documents, set up APIs, and create workflows
+                    </div>
+                </a>
+                
+                <a href="/sdk-voice.html" class="button-card">
+                    <div class="card-icon">🎤</div>
+                    <div class="card-title">Simple Voice</div>
+                    <div class="card-description">
+                        Push-to-talk interface with basic voice interaction capabilities
+                    </div>
+                </a>
+            </div>
+            
+            <div class="info-section">
+                <h3 class="info-title">🚀 Features & Capabilities</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-icon">📄</span>
+                        <span>Document RAG with semantic search</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">🔍</span>
+                        <span>Google web search integration</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">☁️</span>
+                        <span>Free weather API (no key required)</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">✈️</span>
+                        <span>Flight search with Amadeus</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">🎨</span>
+                        <span>10+ voice options</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">🔐</span>
+                        <span>Encrypted API key storage</span>
                     </div>
                 </div>
             </div>
             
-            <div class="chat-panel">
-                <h2 class="section-title">
-                    💬 Conversation
-                </h2>
-                
-                <div class="visualizer" id="visualizer">
-                    <!-- Audio visualizer bars will be added here -->
+            <div class="info-section">
+                <h3 class="info-title">📚 Getting Started</h3>
+                <div style="line-height: 1.8;">
+                    <p><strong>1.</strong> Visit the <a href="/admin.html">Admin Panel</a> to configure your API keys and settings</p>
+                    <p><strong>2.</strong> Upload documents for RAG capabilities (PDF, TXT, MD, CSV, JSON)</p>
+                    <p><strong>3.</strong> Launch the <a href="/official-pattern.html">Voice Assistant</a> and start talking!</p>
+                    <p style="margin-top: 15px; color: #666;">
+                        <em>Note: Requires OpenAI API key with Realtime API access</em>
+                    </p>
                 </div>
-                
-                <div class="transcript-area" id="transcriptArea">
-                    <div class="message assistant">
-                        <div class="message-label">Assistant</div>
-                        Hello! I'm your voice assistant. Upload some documents to my knowledge base, then press the microphone button to start talking to me!
-                    </div>
-                </div>
-                
-                <div class="voice-controls">
-                    <button class="voice-button" id="recordButton" title="Start Recording">
-                        🎤
-                    </button>
-                </div>
-                
-                <!-- Demo Text Input -->
-                <div style="margin-top: 20px; display: flex; gap: 10px;">
-                    <input type="text" id="textInput" placeholder="Type a message (e.g., 'tell me a joke' or 'weather in NYC')" 
-                           style="flex: 1; padding: 12px; border: 2px solid #667eea; border-radius: 25px; font-size: 16px;"
-                           onkeypress="if(event.key==='Enter') voiceBot.sendTextMessage()">
-                    <button onclick="voiceBot.sendTextMessage()" 
-                            style="padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                                   color: white; border: none; border-radius: 25px; cursor: pointer; font-size: 16px;">
-                        Send
-                    </button>
-                </div>
-                
             </div>
         </div>
-    </div>
-    
-    <div class="modal" id="errorModal">
-        <div class="modal-content">
-            <h3>⚠️ Connection Error</h3>
-            <p id="errorMessage">Unable to connect to the server</p>
-            <button class="modal-button" onclick="location.reload()">Retry</button>
+        
+        <div class="footer">
+            <p>
+                Built with OpenAI Realtime API & Agents SDK | 
+                <a href="https://github.com/Maniwar/VoiceBot-Demo" target="_blank">GitHub</a> |
+                <a href="/docs/realtime_voice_agent_setup.md" target="_blank">Documentation</a>
+            </p>
         </div>
     </div>
-    
-    <script src="app.js"></script>
-    <script src="voice-settings.js"></script>
 </body>
 </html>

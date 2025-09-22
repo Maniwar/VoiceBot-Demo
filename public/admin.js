@@ -667,4 +667,395 @@ style.textContent = `
         }
     }
 `;
+
+// Tools & Workflows Management
+let tools = [];
+let workflows = [];
+
+// Load tools and workflows on tab switch
+async function loadToolsAndWorkflows() {
+    await loadTools();
+    await loadWorkflows();
+}
+
+// Tools Management
+async function loadTools() {
+    try {
+        // Load pre-defined tools
+        tools = [
+            {
+                name: 'search_documents',
+                type: 'rag',
+                description: 'Search through uploaded documents using semantic search',
+                enabled: true,
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { type: 'string', description: 'Search query' },
+                        limit: { type: 'number', description: 'Maximum results', default: 5 }
+                    },
+                    required: ['query']
+                }
+            },
+            {
+                name: 'web_search',
+                type: 'api',
+                description: 'Search the web using Google Custom Search',
+                enabled: true,
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: { type: 'string', description: 'Search query' },
+                        num: { type: 'number', description: 'Number of results', default: 5 }
+                    },
+                    required: ['query']
+                }
+            },
+            {
+                name: 'get_weather',
+                type: 'api',
+                description: 'Get weather information for a location (Free API)',
+                enabled: true,
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        location: { type: 'string', description: 'City name' },
+                        forecast: { type: 'boolean', description: 'Get forecast instead of current', default: false },
+                        days: { type: 'number', description: 'Forecast days', default: 3 }
+                    },
+                    required: ['location']
+                }
+            },
+            {
+                name: 'search_flights',
+                type: 'api',
+                description: 'Search for flights using Amadeus API',
+                enabled: true,
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        origin: { type: 'string', description: 'Origin airport code' },
+                        destination: { type: 'string', description: 'Destination airport code' },
+                        departureDate: { type: 'string', description: 'Departure date (YYYY-MM-DD)' },
+                        adults: { type: 'number', description: 'Number of passengers', default: 1 }
+                    },
+                    required: ['origin', 'destination', 'departureDate']
+                }
+            }
+        ];
+        
+        // Load custom tools from config
+        const customTools = JSON.parse(localStorage.getItem('customTools') || '[]');
+        tools = [...tools, ...customTools];
+        
+        renderToolsList();
+    } catch (error) {
+        console.error('Failed to load tools:', error);
+    }
+}
+
+function renderToolsList() {
+    const container = document.getElementById('tools-list');
+    if (!container) return;
+    
+    container.innerHTML = tools.map(tool => `
+        <div class="tool-card">
+            <div class="tool-header">
+                <div>
+                    <span class="tool-name">${tool.name}</span>
+                    <span class="tool-type">${tool.type}</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" ${tool.enabled ? 'checked' : ''} 
+                           onchange="toggleTool('${tool.name}', this.checked)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="tool-description">${tool.description}</div>
+            <div class="tool-actions">
+                <button class="button secondary small" onclick="editTool('${tool.name}')">Edit</button>
+                <button class="button danger small" onclick="deleteTool('${tool.name}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleTool(name, enabled) {
+    const tool = tools.find(t => t.name === name);
+    if (tool) {
+        tool.enabled = enabled;
+        saveTool(tool);
+    }
+}
+
+function editTool(name) {
+    const tool = tools.find(t => t.name === name);
+    if (tool) {
+        document.getElementById('tool-name').value = tool.name;
+        document.getElementById('tool-description').value = tool.description;
+        document.getElementById('tool-type').value = tool.type;
+        document.getElementById('tool-parameters').value = JSON.stringify(tool.parameters, null, 2);
+        document.getElementById('tool-enabled').checked = tool.enabled;
+        
+        updateToolTypeFields();
+        document.getElementById('tool-editor-modal').style.display = 'block';
+    }
+}
+
+function addNewTool() {
+    document.getElementById('tool-form').reset();
+    document.getElementById('tool-editor-modal').style.display = 'block';
+}
+
+function closeToolEditor() {
+    document.getElementById('tool-editor-modal').style.display = 'none';
+}
+
+function updateToolTypeFields() {
+    const type = document.getElementById('tool-type').value;
+    const container = document.getElementById('tool-config-fields');
+    
+    let html = '';
+    switch(type) {
+        case 'api':
+            html = `
+                <div class="form-group">
+                    <label>API Endpoint</label>
+                    <input type="text" id="tool-endpoint" placeholder="https://api.example.com/endpoint">
+                </div>
+                <div class="form-group">
+                    <label>HTTP Method</label>
+                    <select id="tool-method">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+            `;
+            break;
+        case 'rag':
+            html = `
+                <div class="form-group">
+                    <label>Document Collection</label>
+                    <select id="tool-collection">
+                        <option value="all">All Documents</option>
+                        <option value="recent">Recent Uploads</option>
+                    </select>
+                </div>
+            `;
+            break;
+        case 'agent':
+            html = `
+                <div class="form-group">
+                    <label>Target Agent</label>
+                    <input type="text" id="tool-agent" placeholder="Agent name or ID">
+                </div>
+            `;
+            break;
+    }
+    
+    container.innerHTML = html;
+}
+
+function saveTool(tool) {
+    // Save to localStorage for now
+    const customTools = tools.filter(t => !['search_documents', 'web_search', 'get_weather', 'search_flights'].includes(t.name));
+    localStorage.setItem('customTools', JSON.stringify(customTools));
+    showAlert('Tool saved successfully', 'success');
+}
+
+function deleteTool(name) {
+    if (confirm(`Delete tool "${name}"?`)) {
+        tools = tools.filter(t => t.name !== name);
+        saveTool();
+        renderToolsList();
+    }
+}
+
+// Workflows Management
+async function loadWorkflows() {
+    try {
+        workflows = JSON.parse(localStorage.getItem('workflows') || '[]');
+        renderWorkflowsList();
+    } catch (error) {
+        console.error('Failed to load workflows:', error);
+    }
+}
+
+function renderWorkflowsList() {
+    const container = document.getElementById('workflows-list');
+    if (!container) return;
+    
+    if (workflows.length === 0) {
+        container.innerHTML = '<p style="color: #666;">No workflows created yet</p>';
+        return;
+    }
+    
+    container.innerHTML = workflows.map(workflow => `
+        <div class="workflow-card">
+            <div class="workflow-header">
+                <span class="workflow-name">${workflow.name}</span>
+                <span style="color: #666; font-size: 12px;">${workflow.steps?.length || 0} steps</span>
+            </div>
+            <div class="workflow-description">${workflow.description}</div>
+            <div class="workflow-actions">
+                <button class="button secondary small" onclick="editWorkflow('${workflow.id}')">Edit</button>
+                <button class="button success small" onclick="testWorkflow('${workflow.id}')">Test</button>
+                <button class="button danger small" onclick="deleteWorkflow('${workflow.id}')">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+let currentWorkflowSteps = [];
+
+function createNewWorkflow() {
+    document.getElementById('workflow-form').reset();
+    currentWorkflowSteps = [];
+    renderWorkflowSteps();
+    document.getElementById('workflow-builder-modal').style.display = 'block';
+}
+
+function closeWorkflowBuilder() {
+    document.getElementById('workflow-builder-modal').style.display = 'none';
+}
+
+function addWorkflowStep() {
+    const stepNumber = currentWorkflowSteps.length + 1;
+    currentWorkflowSteps.push({
+        id: Date.now(),
+        order: stepNumber,
+        tool: '',
+        params: {},
+        condition: ''
+    });
+    renderWorkflowSteps();
+}
+
+function renderWorkflowSteps() {
+    const container = document.getElementById('workflow-steps');
+    
+    if (currentWorkflowSteps.length === 0) {
+        container.innerHTML = '<p style="color: #666;">No steps added yet</p>';
+        return;
+    }
+    
+    container.innerHTML = currentWorkflowSteps.map((step, index) => `
+        <div class="workflow-step">
+            <div class="workflow-step-header">
+                <span class="step-number">${index + 1}</span>
+                <select onchange="updateStepTool(${index}, this.value)" style="flex: 1;">
+                    <option value="">Select a tool...</option>
+                    ${tools.map(t => `<option value="${t.name}" ${step.tool === t.name ? 'selected' : ''}>${t.name}</option>`).join('')}
+                </select>
+                <span class="step-remove" onclick="removeWorkflowStep(${index})">✕</span>
+            </div>
+            <div style="margin-top: 10px;">
+                <textarea placeholder="Parameters (JSON)" rows="3" 
+                          onchange="updateStepParams(${index}, this.value)"
+                          style="width: 100%; background: #1e1f21; border: 1px solid #333; color: #fff; padding: 8px; border-radius: 4px;">
+${JSON.stringify(step.params, null, 2)}</textarea>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateStepTool(index, toolName) {
+    currentWorkflowSteps[index].tool = toolName;
+}
+
+function updateStepParams(index, params) {
+    try {
+        currentWorkflowSteps[index].params = JSON.parse(params);
+    } catch (e) {
+        console.error('Invalid JSON parameters');
+    }
+}
+
+function removeWorkflowStep(index) {
+    currentWorkflowSteps.splice(index, 1);
+    renderWorkflowSteps();
+}
+
+function saveWorkflow() {
+    const workflow = {
+        id: Date.now().toString(),
+        name: document.getElementById('workflow-name').value,
+        description: document.getElementById('workflow-description').value,
+        triggers: document.getElementById('workflow-triggers').value.split(',').map(t => t.trim()),
+        steps: currentWorkflowSteps,
+        created: new Date().toISOString()
+    };
+    
+    workflows.push(workflow);
+    localStorage.setItem('workflows', JSON.stringify(workflows));
+    
+    closeWorkflowBuilder();
+    loadWorkflows();
+    showAlert('Workflow saved successfully', 'success');
+}
+
+function editWorkflow(id) {
+    const workflow = workflows.find(w => w.id === id);
+    if (workflow) {
+        document.getElementById('workflow-name').value = workflow.name;
+        document.getElementById('workflow-description').value = workflow.description;
+        document.getElementById('workflow-triggers').value = workflow.triggers.join(', ');
+        currentWorkflowSteps = workflow.steps || [];
+        renderWorkflowSteps();
+        document.getElementById('workflow-builder-modal').style.display = 'block';
+    }
+}
+
+function deleteWorkflow(id) {
+    if (confirm('Delete this workflow?')) {
+        workflows = workflows.filter(w => w.id !== id);
+        localStorage.setItem('workflows', JSON.stringify(workflows));
+        loadWorkflows();
+    }
+}
+
+function testWorkflow(id) {
+    const workflow = workflows.find(w => w.id === id);
+    if (workflow) {
+        alert(`Testing workflow: ${workflow.name}\nThis would execute ${workflow.steps.length} steps`);
+    }
+}
+
+// Add form submit handlers
+document.addEventListener('DOMContentLoaded', function() {
+    const toolForm = document.getElementById('tool-form');
+    if (toolForm) {
+        toolForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const tool = {
+                name: document.getElementById('tool-name').value,
+                description: document.getElementById('tool-description').value,
+                type: document.getElementById('tool-type').value,
+                parameters: JSON.parse(document.getElementById('tool-parameters').value),
+                enabled: document.getElementById('tool-enabled').checked
+            };
+            
+            const existingIndex = tools.findIndex(t => t.name === tool.name);
+            if (existingIndex >= 0) {
+                tools[existingIndex] = tool;
+            } else {
+                tools.push(tool);
+            }
+            
+            saveTool(tool);
+            renderToolsList();
+            closeToolEditor();
+        });
+    }
+    
+    const workflowForm = document.getElementById('workflow-form');
+    if (workflowForm) {
+        workflowForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            saveWorkflow();
+        });
+    }
+});
 document.head.appendChild(style);
