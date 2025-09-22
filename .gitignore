@@ -169,4 +169,15 @@ ecs-params.yml
 NOTES.md
 TODO.md
 private/
-notes.txt
+notes.txt# Sensitive and temporary files
+config/.api-keys.json
+config/settings.json
+documents/
+uploads/
+.env
+node_modules/
+*.log
+.DS_Store
+test-*.js
+verify-*.js
+check-*.js

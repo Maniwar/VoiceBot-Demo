@@ -1,38 +1,33 @@
 {
   "name": "voicebot-demo",
-  "version": "1.0.0",
-  "description": "Real-time voice bot with OpenAI Realtime API and RAG",
-  "main": "src/server.js",
+  "version": "2.0.0",
+  "description": "Voice bot platform using OpenAI Agents JS SDK",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/",
+    "test:connection": "node test/connection.test.js",
+    "lint": "eslint .",
+    "build": "echo 'No build step required'"
   },
   "dependencies": {
-    "ws": "^8.16.0",
-    "express": "^4.18.2",
-    "dotenv": "^16.3.1",
-    "openai": "^4.56.0",
-    "@langchain/core": "^0.1.0",
-    "@langchain/openai": "^0.0.10",
-    "@langchain/community": "^0.0.20",
-    "chromadb": "^1.7.3",
+    "@openai/agents": "^0.1.3",
+    "@openai/agents-realtime": "^0.1.3",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
+    "papaparse": "^5.5.3",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "ws": "^8.16.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "@types/ws": "^8.5.10",
-    "@types/express": "^4.17.21",
-    "typescript": "^5.3.3",
-    "nodemon": "^3.0.2",
-    "jest": "^29.7.0",
     "eslint": "^8.56.0",
+    "nodemon": "^3.0.2",
     "prettier": "^3.2.4"
   },
   "engines": {

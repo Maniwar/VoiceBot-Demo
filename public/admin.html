@@ -3,528 +3,350 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VoiceBot Admin - Workflow & API Configuration</title>
+    <title>VoiceBot Admin - Complete Control Panel</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #f5f7fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            padding: 20px;
         }
-        
-        .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            padding: 20px 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .header h1 {
-            font-size: 1.8em;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .nav-tabs {
-            display: flex;
-            gap: 20px;
-            margin-top: 15px;
-        }
-        
-        .nav-tab {
-            background: rgba(255,255,255,0.1);
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid transparent;
-        }
-        
-        .nav-tab:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        
-        .nav-tab.active {
-            background: white;
-            color: #2c3e50;
-        }
-        
+
         .container {
-            max-width: 1400px;
-            margin: 30px auto;
-            padding: 0 20px;
+            max-width: 1600px;
+            margin: 0 auto;
         }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 30px;
-        }
-        
-        .sidebar {
+
+        .header {
             background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            height: fit-content;
-        }
-        
-        .main-panel {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }
-        
-        .section-title {
-            font-size: 1.3em;
-            color: #2c3e50;
+            border-radius: 16px;
+            padding: 30px;
             margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
-        
-        .btn {
-            padding: 10px 20px;
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: #f0f0f0;
             border: none;
             border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
+            font-weight: 600;
             transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
         }
-        
-        .btn-primary {
+
+        .tab.active {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+
+        .tab-content {
+            display: none;
         }
-        
-        .btn-secondary {
-            background: #e0e0e0;
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
             color: #333;
-        }
-        
-        .btn-success {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-        }
-        
-        .btn-danger {
-            background: linear-gradient(135deg, #dc3545, #c82333);
-            color: white;
-        }
-        
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-        
-        /* Workflow Designer */
-        .workflow-canvas {
-            min-height: 400px;
-            background: #f8f9fa;
-            border: 2px dashed #dee2e6;
-            border-radius: 12px;
-            padding: 20px;
-            position: relative;
-        }
-        
-        .workflow-step {
-            background: white;
-            border: 2px solid #667eea;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            position: relative;
-            cursor: move;
-            transition: all 0.3s;
-        }
-        
-        .workflow-step:hover {
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-        }
-        
-        .workflow-step.dragging {
-            opacity: 0.5;
-        }
-        
-        .step-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .step-number {
-            background: #667eea;
-            color: white;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-        }
-        
-        .step-type {
-            background: #f0f0ff;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 12px;
-            color: #667eea;
-        }
-        
-        .step-actions {
-            display: flex;
-            gap: 5px;
-        }
-        
-        .step-config {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #e0e0e0;
-        }
-        
-        .connector {
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #667eea;
-            font-size: 20px;
-        }
-        
-        /* Function List */
-        .function-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .function-item {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-            cursor: grab;
-            transition: all 0.3s;
-        }
-        
-        .function-item:hover {
-            background: white;
-            border-color: #667eea;
-        }
-        
-        .function-item.dragging {
-            cursor: grabbing;
-            opacity: 0.5;
-        }
-        
-        .function-name {
-            font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-        
-        .function-desc {
-            font-size: 12px;
-            color: #666;
-        }
-        
-        /* API Endpoint Configuration */
-        .endpoint-list {
             margin-bottom: 20px;
+            font-size: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
         }
-        
-        .endpoint-item {
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .endpoint-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .endpoint-url {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .method-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: bold;
-            color: white;
-        }
-        
-        .method-GET { background: #28a745; }
-        .method-POST { background: #007bff; }
-        .method-PUT { background: #ffc107; color: #333; }
-        .method-DELETE { background: #dc3545; }
-        
-        /* Forms */
+
         .form-group {
             margin-bottom: 20px;
         }
-        
-        .form-label {
+
+        label {
             display: block;
+            color: #555;
+            font-weight: 600;
             margin-bottom: 8px;
-            font-weight: 500;
-            color: #333;
+            font-size: 14px;
         }
-        
-        .form-control {
+
+        input, select, textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #dee2e6;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
             border-radius: 8px;
             font-size: 14px;
             transition: border-color 0.3s;
         }
-        
-        .form-control:focus {
+
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
-        
-        select.form-control {
-            cursor: pointer;
-        }
-        
-        textarea.form-control {
-            resize: vertical;
+
+        textarea {
             min-height: 100px;
+            resize: vertical;
         }
-        
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        
-        /* Parameters Builder */
-        .param-builder {
-            background: #f8f9fa;
+
+        .button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
             border-radius: 8px;
-            padding: 15px;
-            margin-top: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
         }
-        
-        .param-item {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 10px;
+
+        .button:hover {
+            transform: translateY(-2px);
         }
-        
-        .param-item input {
-            flex: 1;
+
+        .button.secondary {
+            background: #6c757d;
         }
-        
-        .param-type {
-            width: 120px;
+
+        .button.danger {
+            background: #dc3545;
         }
-        
-        /* Test Console */
-        .test-console {
-            background: #2c3e50;
-            color: #fff;
-            border-radius: 8px;
-            padding: 20px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
-            max-height: 300px;
-            overflow-y: auto;
+
+        .button.success {
+            background: #28a745;
         }
-        
-        .console-line {
-            margin-bottom: 5px;
-            display: flex;
-            gap: 10px;
-        }
-        
-        .console-timestamp {
-            color: #95a5a6;
-        }
-        
-        .console-success { color: #2ecc71; }
-        .console-error { color: #e74c3c; }
-        .console-info { color: #3498db; }
-        .console-warning { color: #f39c12; }
-        
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        
-        .modal.active {
-            display: flex;
-        }
-        
-        .modal-content {
-            background: white;
+
+        .api-group {
+            border: 2px solid #e0e0e0;
             border-radius: 12px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-        
-        .modal-header {
             padding: 20px;
-            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 20px;
+        }
+
+        .api-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            margin-bottom: 15px;
         }
-        
-        .modal-body {
-            padding: 20px;
+
+        .api-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
         }
-        
-        .modal-footer {
-            padding: 20px;
-            border-top: 1px solid #dee2e6;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        /* Status Indicators */
-        .status-badge {
-            padding: 4px 10px;
-            border-radius: 15px;
+
+        .validate-btn {
+            padding: 6px 12px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 6px;
             font-size: 12px;
-            font-weight: 500;
+            cursor: pointer;
         }
-        
-        .status-active {
+
+        .status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status.valid {
             background: #d4edda;
             color: #155724;
         }
-        
-        .status-inactive {
+
+        .status.invalid {
             background: #f8d7da;
             color: #721c24;
         }
-        
-        .status-testing {
+
+        .status.pending {
             background: #fff3cd;
             color: #856404;
         }
-        
-        /* Code Editor */
-        .code-editor {
-            background: #2c3e50;
-            color: #fff;
+
+        /* Document Management Styles */
+        .document-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
             border-radius: 8px;
-            padding: 15px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
-            white-space: pre;
-            overflow-x: auto;
+            padding: 10px;
         }
-        
-        .json-editor {
-            width: 100%;
-            min-height: 200px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 13px;
+
+        .document-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
         }
-        
-        /* Stats Cards */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+
+        .document-info {
+            flex: 1;
         }
-        
-        .stat-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+
+        .document-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
         }
-        
-        .stat-value {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
-        
-        .stat-label {
-            font-size: 14px;
+
+        .document-meta {
+            font-size: 12px;
             color: #666;
         }
-        
-        .stat-change {
-            font-size: 12px;
-            margin-top: 5px;
+
+        .document-actions {
+            display: flex;
+            gap: 8px;
         }
-        
-        .stat-up { color: #28a745; }
-        .stat-down { color: #dc3545; }
-        
-        /* Drag and Drop */
-        .drop-zone {
-            border: 3px dashed #dee2e6;
-            border-radius: 8px;
+
+        .upload-zone {
+            border: 3px dashed #e0e0e0;
+            border-radius: 12px;
             padding: 40px;
             text-align: center;
+            background: #f8f9fa;
+            cursor: pointer;
             transition: all 0.3s;
         }
-        
-        .drop-zone.drag-over {
+
+        .upload-zone:hover, .upload-zone.dragover {
             border-color: #667eea;
-            background: #f0f0ff;
+            background: #f0f4ff;
         }
-        
-        /* Loading Spinner */
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 40px 12px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .search-button {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .search-results {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .search-results.active {
+            display: block;
+        }
+
+        .result-item {
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .result-score {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 10px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
         .spinner {
             border: 3px solid #f3f3f3;
             border-top: 3px solid #667eea;
@@ -532,619 +354,813 @@
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 20px auto;
+            margin: 0 auto;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
+
         @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats-grid {
+            .main-grid {
                 grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>⚙️ VoiceBot Admin Dashboard</h1>
-        <div class="nav-tabs">
-            <div class="nav-tab active" data-tab="workflows">Workflows</div>
-            <div class="nav-tab" data-tab="personality">Bot Personality</div>
-            <div class="nav-tab" data-tab="functions">Functions</div>
-            <div class="nav-tab" data-tab="endpoints">API Endpoints</div>
-            <div class="nav-tab" data-tab="testing">Testing</div>
-            <div class="nav-tab" data-tab="analytics">Analytics</div>
-        </div>
-    </div>
-    
     <div class="container">
-        <!-- Workflows Tab -->
-        <div id="workflows" class="tab-content active">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value">12</div>
-                    <div class="stat-label">Active Workflows</div>
-                    <div class="stat-change stat-up">↑ 3 this week</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">847</div>
-                    <div class="stat-label">Executions Today</div>
-                    <div class="stat-change stat-up">↑ 15% from yesterday</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">98.5%</div>
-                    <div class="stat-label">Success Rate</div>
-                    <div class="stat-change">→ No change</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">1.2s</div>
-                    <div class="stat-label">Avg. Duration</div>
-                    <div class="stat-change stat-down">↓ 0.3s improvement</div>
-                </div>
-            </div>
+        <div class="header">
+            <h1>🎙️ VoiceBot Admin Panel</h1>
+            <p>Configure your AI voice assistant, manage documents, and API integrations</p>
             
-            <div class="grid">
-                <div class="sidebar">
-                    <div class="section-title">
-                        Available Actions
-                        <button class="btn btn-primary btn-small" onclick="addCustomFunction()">+ Add</button>
-                    </div>
-                    <div class="function-list">
-                        <div class="function-item" draggable="true" data-function="api_call">
-                            <div class="function-name">🔌 API Call</div>
-                            <div class="function-desc">Call external API endpoint</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="database_query">
-                            <div class="function-name">🗄️ Database Query</div>
-                            <div class="function-desc">Query database for information</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="send_notification">
-                            <div class="function-name">📧 Send Notification</div>
-                            <div class="function-desc">Send email/SMS notification</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="condition_check">
-                            <div class="function-name">🔀 Condition Check</div>
-                            <div class="function-desc">Conditional branching logic</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="data_transform">
-                            <div class="function-name">🔄 Transform Data</div>
-                            <div class="function-desc">Transform or format data</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="llm_process">
-                            <div class="function-name">🤖 LLM Process</div>
-                            <div class="function-desc">Process with language model</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="wait_timer">
-                            <div class="function-name">⏱️ Wait/Timer</div>
-                            <div class="function-desc">Add delay or schedule</div>
-                        </div>
-                        <div class="function-item" draggable="true" data-function="log_activity">
-                            <div class="function-name">📝 Log Activity</div>
-                            <div class="function-desc">Log to system or audit trail</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="main-panel">
-                    <div class="section-title">
-                        Workflow Designer
-                        <div>
-                            <button class="btn btn-secondary" onclick="loadWorkflow()">📂 Load</button>
-                            <button class="btn btn-success" onclick="saveWorkflow()">💾 Save</button>
-                            <button class="btn btn-primary" onclick="testWorkflow()">▶️ Test</button>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Workflow Name</label>
-                        <input type="text" class="form-control" id="workflowName" placeholder="e.g., Customer Support Ticket">
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Trigger Type</label>
-                            <select class="form-control" id="triggerType">
-                                <option value="voice_command">Voice Command</option>
-                                <option value="api_webhook">API Webhook</option>
-                                <option value="scheduled">Scheduled</option>
-                                <option value="event">System Event</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Trigger Pattern</label>
-                            <input type="text" class="form-control" id="triggerPattern" placeholder="e.g., create.*ticket|support.*request">
-                        </div>
-                    </div>
-                    
-                    <div class="workflow-canvas" id="workflowCanvas">
-                        <div style="text-align: center; color: #999; padding: 100px 20px;">
-                            Drag actions from the left panel to build your workflow
-                        </div>
-                    </div>
-                </div>
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('bot')">Bot Settings</button>
+                <button class="tab" onclick="switchTab('documents')">Document Management</button>
+                <button class="tab" onclick="switchTab('apis')">API Configuration</button>
+                <button class="tab" onclick="switchTab('tools')">Tools & Workflows</button>
+                <button class="tab" onclick="switchTab('test')">Test Assistant</button>
             </div>
         </div>
-        
-        <!-- Bot Personality Tab -->
-        <div id="personality" class="tab-content">
-            <div class="section-title">
-                Bot Personality Configuration
-                <button class="btn btn-success" onclick="savePersonalityConfig()">💾 Save Configuration</button>
-            </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value">Friendly</div>
-                    <div class="stat-label">Current Personality</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">Nova</div>
-                    <div class="stat-label">Voice</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">0.7</div>
-                    <div class="stat-label">Temperature</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">Balanced</div>
-                    <div class="stat-label">Response Style</div>
-                </div>
-            </div>
-            
-            <div class="grid" style="margin-top: 30px;">
-                <div class="sidebar">
-                    <div class="section-title">Quick Presets</div>
-                    
-                    <div class="function-list">
-                        <div class="function-item" onclick="loadPersonality('professional')">
-                            <div class="function-name">👔 Professional</div>
-                            <div class="function-desc">Formal business communication</div>
-                        </div>
-                        <div class="function-item" onclick="loadPersonality('friendly')">
-                            <div class="function-name">😊 Friendly</div>
-                            <div class="function-desc">Warm and conversational</div>
-                        </div>
-                        <div class="function-item" onclick="loadPersonality('technical')">
-                            <div class="function-name">🔧 Technical</div>
-                            <div class="function-desc">Detailed technical expert</div>
-                        </div>
-                        <div class="function-item" onclick="loadPersonality('sales')">
-                            <div class="function-name">💼 Sales</div>
-                            <div class="function-desc">Persuasive and customer-focused</div>
-                        </div>
-                        <div class="function-item" onclick="loadPersonality('support')">
-                            <div class="function-name">🎧 Support</div>
-                            <div class="function-desc">Patient problem solver</div>
-                        </div>
-                        <div class="function-item" onclick="loadPersonality('concierge')">
-                            <div class="function-name">🎩 Concierge</div>
-                            <div class="function-desc">Premium service oriented</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="main-panel">
-                    <div class="section-title">Personality Settings</div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Personality Type</label>
-                            <select class="form-control" id="personalityType">
-                                <option value="professional">Professional</option>
-                                <option value="friendly" selected>Friendly</option>
-                                <option value="technical">Technical</option>
-                                <option value="sales">Sales</option>
-                                <option value="support">Support</option>
-                                <option value="concierge">Concierge</option>
-                                <option value="custom">Custom</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Voice</label>
-                            <select class="form-control" id="voiceSelect">
-                                <option value="alloy">Alloy (Neutral)</option>
-                                <option value="echo">Echo (Warm)</option>
-                                <option value="fable">Fable (Expressive)</option>
-                                <option value="onyx">Onyx (Deep)</option>
-                                <option value="nova" selected>Nova (Bright)</option>
-                                <option value="shimmer">Shimmer (Smooth)</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Response Style</label>
-                            <select class="form-control" id="responseStyle">
-                                <option value="verbose">Verbose - Detailed responses</option>
-                                <option value="balanced" selected>Balanced - Moderate detail</option>
-                                <option value="concise">Concise - Brief and direct</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Temperature (Creativity)</label>
-                            <input type="range" class="form-control" id="temperature" min="0" max="1" step="0.1" value="0.7">
-                            <small>Current: <span id="tempValue">0.7</span></small>
-                        </div>
-                    </div>
-                    
+
+        <div id="alert" class="alert"></div>
+
+        <!-- Bot Settings Tab -->
+        <div id="bot-tab" class="tab-content active">
+            <div class="main-grid">
+                <div class="card">
+                    <h2>Voice Configuration</h2>
                     <div class="form-group">
-                        <label class="form-label">System Prompt (Instructions)</label>
-                        <textarea class="form-control" id="systemPrompt" rows="4" placeholder="Define the bot's behavior and communication style...">You are a friendly and helpful assistant. Be warm, approachable, and conversational. Use a casual but respectful tone.</textarea>
-                    </div>
-                    
-                    <div class="section-title" style="margin-top: 30px;">Behavior Traits</div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Formality Level</label>
-                            <select class="form-control" id="formalityLevel">
-                                <option value="casual">Casual</option>
-                                <option value="moderate">Moderate</option>
-                                <option value="formal">Formal</option>
-                                <option value="elegant">Elegant</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Humor Usage</label>
-                            <select class="form-control" id="humorLevel">
-                                <option value="none">None</option>
-                                <option value="minimal">Minimal</option>
-                                <option value="moderate">Moderate</option>
-                                <option value="frequent">Frequent</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Empathy Level</label>
-                            <select class="form-control" id="empathyLevel">
-                                <option value="low">Low - Facts focused</option>
-                                <option value="moderate">Moderate - Balanced</option>
-                                <option value="high">High - Understanding</option>
-                                <option value="very_high">Very High - Deeply caring</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Interaction Mode</label>
-                            <select class="form-control" id="interactionMode">
-                                <option value="reactive">Reactive - Answer only</option>
-                                <option value="guided">Guided - Help navigate</option>
-                                <option value="proactive">Proactive - Anticipate needs</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="section-title" style="margin-top: 30px;">Advanced Settings</div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Memory Usage</label>
-                            <select class="form-control" id="memoryUsage">
-                                <option value="full_context">Full - Remember everything</option>
-                                <option value="recent_context">Recent - Last 10 interactions</option>
-                                <option value="minimal_context">Minimal - Current query only</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Error Handling Style</label>
-                            <select class="form-control" id="errorStyle">
-                                <option value="apologetic">Apologetic</option>
-                                <option value="solution_focused">Solution Focused</option>
-                                <option value="technical">Technical</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Sample Responses</label>
-                        <div class="param-builder" style="padding: 20px;">
-                            <div style="margin-bottom: 15px;">
-                                <strong>Greeting:</strong>
-                                <input type="text" class="form-control" id="sampleGreeting" value="Hey there! How can I help you today?">
-                            </div>
-                            <div style="margin-bottom: 15px;">
-                                <strong>Error Response:</strong>
-                                <input type="text" class="form-control" id="sampleError" value="Oops, looks like we hit a snag. Let's figure this out together!">
-                            </div>
-                            <div>
-                                <strong>Task Complete:</strong>
-                                <input type="text" class="form-control" id="sampleComplete" value="All done! Need help with anything else?">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-                        <button class="btn btn-secondary" onclick="testPersonality()">🧪 Test Voice</button>
-                        <button class="btn btn-primary" onclick="applyPersonality()">Apply Changes</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Functions Tab -->
-        <div id="functions" class="tab-content">
-            <div class="section-title">
-                Function Definitions
-                <button class="btn btn-primary" onclick="createFunction()">+ Create Function</button>
-            </div>
-            
-            <div class="grid">
-                <div class="sidebar">
-                    <div class="section-title">Function List</div>
-                    <div id="functionsList"></div>
-                </div>
-                
-                <div class="main-panel">
-                    <div class="section-title">Function Editor</div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Function Name</label>
-                        <input type="text" class="form-control" id="functionName" placeholder="e.g., searchDatabase">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" id="functionDescription" placeholder="Describe what this function does"></textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Parameters</label>
-                        <div class="param-builder" id="paramBuilder">
-                            <div class="param-item">
-                                <input type="text" class="form-control" placeholder="Parameter name">
-                                <select class="form-control param-type">
-                                    <option value="string">String</option>
-                                    <option value="number">Number</option>
-                                    <option value="boolean">Boolean</option>
-                                    <option value="object">Object</option>
-                                    <option value="array">Array</option>
-                                </select>
-                                <input type="checkbox" id="required"> <label for="required">Required</label>
-                                <button class="btn btn-danger btn-small" onclick="removeParam(this)">×</button>
-                            </div>
-                        </div>
-                        <button class="btn btn-secondary btn-small" onclick="addParameter()">+ Add Parameter</button>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Implementation (JavaScript)</label>
-                        <textarea class="form-control json-editor" id="functionImplementation" rows="15">async function execute(params) {
-    // Your function implementation here
-    console.log('Executing function with params:', params);
-    
-    // Example: Call an external API
-    const response = await fetch('https://api.example.com/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params)
-    });
-    
-    return await response.json();
-}</textarea>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                        <button class="btn btn-secondary" onclick="testFunction()">Test Function</button>
-                        <button class="btn btn-success" onclick="deployFunction()">Deploy Function</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- API Endpoints Tab -->
-        <div id="endpoints" class="tab-content">
-            <div class="section-title">
-                API Endpoint Configuration
-                <div style="float: right; display: flex; gap: 10px;">
-                    <button class="btn btn-secondary" onclick="exportEndpoints()">📥 Export</button>
-                    <button class="btn btn-secondary" onclick="importEndpoints()">📤 Import</button>
-                    <button class="btn btn-primary" onclick="addNewEndpoint()">+ Add Endpoint</button>
-                </div>
-            </div>
-            
-            <div class="endpoint-list" id="endpointList">
-                <div class="endpoint-item">
-                    <div class="endpoint-header">
-                        <h3>Customer Database API</h3>
-                        <span class="status-badge status-active">Active</span>
-                    </div>
-                    <div class="endpoint-url">
-                        <span class="method-badge method-GET">GET</span>
-                        <code>https://api.company.com/v1/customers/{id}</code>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Authentication</label>
-                        <select class="form-control">
-                            <option>Bearer Token</option>
-                            <option>API Key</option>
-                            <option>OAuth 2.0</option>
-                            <option>Basic Auth</option>
+                        <label for="voice">Voice Selection</label>
+                        <select id="voice">
+                            <option value="alloy">Alloy (Neutral)</option>
+                            <option value="shimmer" selected>Shimmer (Expressive)</option>
+                            <option value="echo">Echo (Smooth)</option>
+                            <option value="ash">Ash</option>
+                            <option value="ballad">Ballad</option>
+                            <option value="coral">Coral</option>
+                            <option value="sage">Sage</option>
+                            <option value="verse">Verse</option>
+                            <option value="marin">Marin</option>
+                            <option value="cedar">Cedar</option>
                         </select>
                     </div>
+                    
                     <div class="form-group">
-                        <label class="form-label">Headers</label>
-                        <textarea class="form-control" rows="3">Authorization: Bearer ${API_TOKEN}
-Content-Type: application/json</textarea>
+                        <label for="model">Model</label>
+                        <select id="model">
+                            <option value="gpt-4o-realtime-preview" selected>GPT-4o Realtime Preview</option>
+                            <option value="gpt-realtime">GPT Realtime</option>
+                        </select>
                     </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-secondary btn-small">Test</button>
-                        <button class="btn btn-success btn-small">Save</button>
-                        <button class="btn btn-danger btn-small">Delete</button>
+                    
+                    <div class="form-group">
+                        <label for="temperature">Temperature (0-2)</label>
+                        <input type="number" id="temperature" min="0" max="2" step="0.1" value="0.8">
                     </div>
+                    
+                    <button class="button" onclick="saveSettings()">Save Voice Settings</button>
+                </div>
+
+                <div class="card">
+                    <h2>Personality & Behavior</h2>
+                    <div class="form-group">
+                        <label for="instructions">System Instructions</label>
+                        <textarea id="instructions">You are an incredibly expressive and enthusiastic voice assistant with a vibrant personality! Speak with natural emotion, varying your tone, pace, and inflection to match the context.</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="greeting">Greeting Message</label>
+                        <input type="text" id="greeting" value="Hello! I'm your AI assistant. How can I help you today?">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="useEmoji"> Use Emojis
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="useHumor" checked> Use Humor
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="beExpressive" checked> Be Expressive
+                        </label>
+                    </div>
+                    
+                    <button class="button" onclick="saveSettings()">Save Personality</button>
+                </div>
+
+                <div class="card">
+                    <h2>Session Settings</h2>
+                    <div class="form-group">
+                        <label for="maxTokens">Max Tokens</label>
+                        <input type="number" id="maxTokens" value="4096">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="sessionTimeout">Session Timeout (seconds)</label>
+                        <input type="number" id="sessionTimeout" value="300">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="contextWindow">Context Window</label>
+                        <select id="contextWindow">
+                            <option value="short">Short (2k tokens)</option>
+                            <option value="medium" selected>Medium (4k tokens)</option>
+                            <option value="long">Long (8k tokens)</option>
+                        </select>
+                    </div>
+                    
+                    <button class="button" onclick="saveSettings()">Save Session Settings</button>
+                </div>
+
+                <div class="card">
+                    <h2>Feature Toggles</h2>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="ragEnabled" checked> Enable RAG (Document Search)
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="webSearchEnabled" checked> Enable Web Search
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="flightSearchEnabled" checked> Enable Flight Search
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="weatherEnabled" checked> Enable Weather
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="moderationEnabled" checked> Enable Content Moderation
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="loggingEnabled" checked> Enable Conversation Logging
+                        </label>
+                    </div>
+                    
+                    <button class="button" onclick="saveSettings()">Save Features</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Management Tab -->
+        <div id="documents-tab" class="tab-content">
+            <div class="main-grid">
+                <div class="card">
+                    <h2>Upload Documents</h2>
+                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+                        <p>📁 Click or drag files here to upload</p>
+                        <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                            Supported: PDF, TXT, MD, CSV, JSON, PNG, JPG
+                        </p>
+                        <input type="file" id="fileInput" style="display: none;" multiple accept=".pdf,.txt,.md,.csv,.json,.png,.jpg,.jpeg">
+                    </div>
+                    
+                    <div class="loading" id="uploadLoading">
+                        <div class="spinner"></div>
+                        <p>Processing documents...</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Search Documents</h2>
+                    <div class="search-box">
+                        <input type="text" class="search-input" id="searchQuery" placeholder="Enter search query...">
+                        <button class="search-button" onclick="searchDocuments()">Search</button>
+                    </div>
+                    
+                    <div class="search-results" id="searchResults">
+                        <h3>Search Results</h3>
+                        <div id="searchResultsList"></div>
+                    </div>
+                </div>
+
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h2>Document Library</h2>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                        <span id="documentCount">0 documents</span>
+                        <button class="button danger" onclick="clearAllDocuments()">Clear All</button>
+                    </div>
+                    
+                    <div class="document-list" id="documentList">
+                        <p style="text-align: center; color: #666;">No documents uploaded yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Configuration Tab -->
+        <div id="apis-tab" class="tab-content">
+            <div class="main-grid">
+                <div class="card">
+                    <h2>OpenAI Configuration</h2>
+                    <div class="api-group">
+                        <div class="api-header">
+                            <span class="api-title">OpenAI API</span>
+                            <button class="validate-btn" onclick="validateApi('openai')">Validate</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="openaiKey">API Key</label>
+                            <input type="password" id="openaiKey" placeholder="sk-...">
+                        </div>
+                        <div class="form-group">
+                            <label for="openaiOrg">Organization ID (Optional)</label>
+                            <input type="text" id="openaiOrg" placeholder="org-...">
+                        </div>
+                        <div id="openaiStatus" class="status pending">Not validated</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Google Search Configuration</h2>
+                    <div class="api-group">
+                        <div class="api-header">
+                            <span class="api-title">Google Custom Search</span>
+                            <button class="validate-btn" onclick="validateApi('google')">Validate</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="googleKey">API Key</label>
+                            <input type="password" id="googleKey" placeholder="AIza...">
+                        </div>
+                        <div class="form-group">
+                            <label for="googleSearchEngineId">Search Engine ID</label>
+                            <input type="text" id="googleSearchEngineId" placeholder="cx:...">
+                        </div>
+                        <div id="googleStatus" class="status pending">Not validated</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Amadeus Flight Search</h2>
+                    <div class="api-group">
+                        <div class="api-header">
+                            <span class="api-title">Amadeus API</span>
+                            <button class="validate-btn" onclick="validateApi('amadeus')">Validate</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="amadeusClientId">Client ID</label>
+                            <input type="text" id="amadeusClientId" placeholder="Client ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="amadeusClientSecret">Client Secret</label>
+                            <input type="password" id="amadeusClientSecret" placeholder="Client Secret">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="amadeusSandbox" checked> Use Sandbox Environment
+                            </label>
+                        </div>
+                        <div id="amadeusStatus" class="status pending">Not validated</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>OpenWeather Configuration</h2>
+                    <div class="api-group">
+                        <div class="api-header">
+                            <span class="api-title">OpenWeather API</span>
+                            <button class="validate-btn" onclick="validateApi('openweather')">Validate</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="weatherKey">API Key</label>
+                            <input type="password" id="weatherKey" placeholder="API Key">
+                        </div>
+                        <div class="form-group">
+                            <label for="weatherUnits">Units</label>
+                            <select id="weatherUnits">
+                                <option value="metric">Metric (°C)</option>
+                                <option value="imperial">Imperial (°F)</option>
+                                <option value="kelvin">Kelvin</option>
+                            </select>
+                        </div>
+                        <div id="weatherStatus" class="status pending">Not validated</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; text-align: center;">
+                <button class="button success" onclick="saveApiKeys()">Save All API Configurations</button>
+            </div>
+        </div>
+
+        <!-- Tools & Workflows Tab -->
+        <div id="tools-tab" class="tab-content">
+            <div class="card">
+                <h2>Available Tools</h2>
+                <p>Configure which tools are available to the voice assistant</p>
+                
+                <div style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" checked> Document Search (RAG)
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Search through uploaded documents</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" checked> Web Search
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Search the web using Google</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" checked> Flight Search
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Search for flights using Amadeus</p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" checked> Weather Information
+                        </label>
+                        <p style="font-size: 12px; color: #666; margin-left: 24px;">Get weather information</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Assistant Tab -->
+        <div id="test-tab" class="tab-content">
+            <div class="card">
+                <h2>Test Voice Assistant</h2>
+                <p>Test your voice assistant with the current configuration</p>
+                
+                <div style="margin-top: 30px; text-align: center;">
+                    <button class="button" onclick="window.open('/voice-agent.html', '_blank')">
+                        🎙️ Open Voice Assistant
+                    </button>
                 </div>
                 
-                <div class="endpoint-item">
-                    <div class="endpoint-header">
-                        <h3>Payment Processing API</h3>
-                        <span class="status-badge status-active">Active</span>
-                    </div>
-                    <div class="endpoint-url">
-                        <span class="method-badge method-POST">POST</span>
-                        <code>https://payments.stripe.com/v1/charge</code>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Request Body Template</label>
-                        <textarea class="form-control json-editor" rows="6">{
-    "amount": "${amount}",
-    "currency": "usd",
-    "customer": "${customerId}",
-    "description": "${description}"
-}</textarea>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Testing Tab -->
-        <div id="testing" class="tab-content">
-            <div class="section-title">
-                Workflow Testing Console
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">Select Workflow to Test</label>
-                <select class="form-control" id="testWorkflowSelect">
-                    <option>Customer Support Ticket</option>
-                    <option>Order Processing</option>
-                    <option>Payment Verification</option>
-                    <option>Account Creation</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">Test Input (Voice Command or JSON)</label>
-                <textarea class="form-control" id="testInput" rows="3">Create a high priority support ticket for billing issue</textarea>
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label">Test Parameters</label>
-                <textarea class="form-control json-editor" id="testParams" rows="5">{
-    "userId": "test-user-123",
-    "context": {
-        "sessionId": "test-session",
-        "timestamp": "2024-01-15T10:30:00Z"
-    }
-}</textarea>
-            </div>
-            
-            <button class="btn btn-primary" onclick="runTest()">🧪 Run Test</button>
-            
-            <div class="section-title" style="margin-top: 30px;">Execution Log</div>
-            <div class="test-console" id="testConsole">
-                <div class="console-line">
-                    <span class="console-timestamp">10:30:15</span>
-                    <span class="console-info">Ready to test workflows...</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Analytics Tab -->
-        <div id="analytics" class="tab-content">
-            <div class="section-title">
-                Workflow Analytics
-                <select class="form-control" style="width: 200px; display: inline-block; margin-left: 20px;">
-                    <option>Last 24 Hours</option>
-                    <option>Last 7 Days</option>
-                    <option>Last 30 Days</option>
-                    <option>Custom Range</option>
-                </select>
-            </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value">15,234</div>
-                    <div class="stat-label">Total Executions</div>
-                    <div class="stat-change stat-up">↑ 12% increase</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">0.8s</div>
-                    <div class="stat-label">Avg Response Time</div>
-                    <div class="stat-change stat-down">↓ 200ms faster</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">99.2%</div>
-                    <div class="stat-label">Success Rate</div>
-                    <div class="stat-change stat-up">↑ 0.5% improvement</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">$1,247</div>
-                    <div class="stat-label">API Costs</div>
-                    <div class="stat-change stat-down">↓ $153 saved</div>
-                </div>
-            </div>
-            
-            <div class="section-title" style="margin-top: 30px;">Top Workflows by Usage</div>
-            <div class="endpoint-list">
-                <div class="endpoint-item">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h4>Customer Support Ticket</h4>
-                            <div style="color: #666; font-size: 14px;">4,521 executions • 99.5% success</div>
-                        </div>
-                        <button class="btn btn-secondary btn-small">View Details</button>
-                    </div>
-                </div>
-                <div class="endpoint-item">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h4>Order Status Check</h4>
-                            <div style="color: #666; font-size: 14px;">3,892 executions • 100% success</div>
-                        </div>
-                        <button class="btn btn-secondary btn-small">View Details</button>
-                    </div>
-                </div>
-                <div class="endpoint-item">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h4>Payment Processing</h4>
-                            <div style="color: #666; font-size: 14px;">2,103 executions • 97.8% success</div>
-                        </div>
-                        <button class="btn btn-secondary btn-small">View Details</button>
-                    </div>
+                <div style="margin-top: 20px;">
+                    <h3>Test Queries</h3>
+                    <ul style="color: #666; line-height: 1.8;">
+                        <li>"Search for information about [topic] in my documents"</li>
+                        <li>"What's the weather in New York?"</li>
+                        <li>"Find flights from JFK to LAX next Monday"</li>
+                        <li>"Search the web for latest AI news"</li>
+                        <li>"List all uploaded documents"</li>
+                    </ul>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Modals -->
-    <div class="modal" id="functionModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Create New Function</h2>
-                <button class="btn btn-secondary btn-small" onclick="closeModal('functionModal')">×</button>
-            </div>
-            <div class="modal-body">
-                <!-- Function creation form -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('functionModal')">Cancel</button>
-                <button class="btn btn-primary">Create Function</button>
-            </div>
-        </div>
-    </div>
-    
-    <script src="admin.js?v=6"></script>
-    <script src="admin-functions.js?v=6"></script>
+
+    <script>
+        // Tab switching
+        function switchTab(tab) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active from all tab buttons
+            document.querySelectorAll('.tab').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`${tab}-tab`).classList.add('active');
+            
+            // Mark tab button as active
+            event.target.classList.add('active');
+            
+            // Load data for the tab if needed
+            if (tab === 'documents') {
+                loadDocuments();
+            }
+        }
+
+        // Show alert
+        function showAlert(message, type = 'info') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert show ${type}`;
+            alert.textContent = message;
+            
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+
+        // Load settings on page load
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                if (response.ok) {
+                    const settings = await response.json();
+                    
+                    // Populate form fields
+                    document.getElementById('voice').value = settings.voice || 'shimmer';
+                    document.getElementById('model').value = settings.model || 'gpt-4o-realtime-preview';
+                    document.getElementById('temperature').value = settings.temperature || 0.8;
+                    document.getElementById('instructions').value = settings.instructions || '';
+                    document.getElementById('greeting').value = settings.greeting || '';
+                    document.getElementById('useEmoji').checked = settings.useEmoji || false;
+                    document.getElementById('useHumor').checked = settings.useHumor || true;
+                    document.getElementById('beExpressive').checked = settings.beExpressive || true;
+                    document.getElementById('maxTokens').value = settings.maxTokens || 4096;
+                    document.getElementById('sessionTimeout').value = settings.sessionTimeout || 300;
+                    document.getElementById('contextWindow').value = settings.contextWindow || 'medium';
+                    
+                    // Feature toggles
+                    document.getElementById('ragEnabled').checked = settings.tools?.ragEnabled !== false;
+                    document.getElementById('webSearchEnabled').checked = settings.tools?.webSearchEnabled !== false;
+                    document.getElementById('flightSearchEnabled').checked = settings.tools?.flightSearchEnabled !== false;
+                    document.getElementById('weatherEnabled').checked = settings.tools?.weatherEnabled !== false;
+                    document.getElementById('moderationEnabled').checked = settings.moderationEnabled !== false;
+                    document.getElementById('loggingEnabled').checked = settings.loggingEnabled !== false;
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+            
+            // Load API keys (masked)
+            try {
+                const response = await fetch('/api/apikeys');
+                if (response.ok) {
+                    const apis = await response.json();
+                    
+                    if (apis.openai) {
+                        document.getElementById('openaiKey').value = apis.openai.apiKey || '';
+                        document.getElementById('openaiOrg').value = apis.openai.organization || '';
+                    }
+                    
+                    if (apis.google) {
+                        document.getElementById('googleKey').value = apis.google.apiKey || '';
+                        document.getElementById('googleSearchEngineId').value = apis.google.searchEngineId || '';
+                    }
+                    
+                    if (apis.amadeus) {
+                        document.getElementById('amadeusClientId').value = apis.amadeus.clientId || '';
+                        document.getElementById('amadeusClientSecret').value = apis.amadeus.clientSecret || '';
+                        document.getElementById('amadeusSandbox').checked = apis.amadeus.sandbox !== false;
+                    }
+                    
+                    if (apis.openweather) {
+                        document.getElementById('weatherKey').value = apis.openweather.apiKey || '';
+                        document.getElementById('weatherUnits').value = apis.openweather.units || 'metric';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading API keys:', error);
+            }
+        }
+
+        // Save settings
+        async function saveSettings() {
+            const settings = {
+                voice: document.getElementById('voice').value,
+                model: document.getElementById('model').value,
+                temperature: parseFloat(document.getElementById('temperature').value),
+                instructions: document.getElementById('instructions').value,
+                greeting: document.getElementById('greeting').value,
+                useEmoji: document.getElementById('useEmoji').checked,
+                useHumor: document.getElementById('useHumor').checked,
+                beExpressive: document.getElementById('beExpressive').checked,
+                maxTokens: parseInt(document.getElementById('maxTokens').value),
+                sessionTimeout: parseInt(document.getElementById('sessionTimeout').value),
+                contextWindow: document.getElementById('contextWindow').value,
+                tools: {
+                    ragEnabled: document.getElementById('ragEnabled').checked,
+                    webSearchEnabled: document.getElementById('webSearchEnabled').checked,
+                    flightSearchEnabled: document.getElementById('flightSearchEnabled').checked,
+                    weatherEnabled: document.getElementById('weatherEnabled').checked
+                },
+                moderationEnabled: document.getElementById('moderationEnabled').checked,
+                loggingEnabled: document.getElementById('loggingEnabled').checked
+            };
+            
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                
+                if (response.ok) {
+                    showAlert('Settings saved successfully!', 'success');
+                } else {
+                    showAlert('Error saving settings', 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving settings', 'error');
+                console.error('Save error:', error);
+            }
+        }
+
+        // Save API keys
+        async function saveApiKeys() {
+            const apis = {
+                openai: {
+                    apiKey: document.getElementById('openaiKey').value,
+                    organization: document.getElementById('openaiOrg').value,
+                    enabled: true,
+                    category: 'ai'
+                },
+                google: {
+                    apiKey: document.getElementById('googleKey').value,
+                    searchEngineId: document.getElementById('googleSearchEngineId').value,
+                    enabled: true,
+                    category: 'search'
+                },
+                amadeus: {
+                    clientId: document.getElementById('amadeusClientId').value,
+                    clientSecret: document.getElementById('amadeusClientSecret').value,
+                    sandbox: document.getElementById('amadeusSandbox').checked,
+                    enabled: true,
+                    category: 'travel'
+                },
+                openweather: {
+                    apiKey: document.getElementById('weatherKey').value,
+                    units: document.getElementById('weatherUnits').value,
+                    enabled: true,
+                    category: 'weather'
+                }
+            };
+            
+            try {
+                const response = await fetch('/api/apikeys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(apis)
+                });
+                
+                if (response.ok) {
+                    showAlert('API keys saved successfully!', 'success');
+                } else {
+                    showAlert('Error saving API keys', 'error');
+                }
+            } catch (error) {
+                showAlert('Error saving API keys', 'error');
+                console.error('Save error:', error);
+            }
+        }
+
+        // Validate API
+        async function validateApi(apiName) {
+            const statusEl = document.getElementById(`${apiName}Status`);
+            statusEl.className = 'status pending';
+            statusEl.textContent = 'Validating...';
+            
+            try {
+                const response = await fetch(`/api/apikeys/validate/${apiName}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.valid) {
+                    statusEl.className = 'status valid';
+                    statusEl.textContent = 'Valid';
+                } else {
+                    statusEl.className = 'status invalid';
+                    statusEl.textContent = result.error || 'Invalid';
+                }
+            } catch (error) {
+                statusEl.className = 'status invalid';
+                statusEl.textContent = 'Validation failed';
+            }
+        }
+
+        // Document Management Functions
+        
+        // Setup file upload
+        document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+        
+        // Setup drag and drop
+        const uploadZone = document.getElementById('uploadZone');
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        async function handleFileUpload(event) {
+            handleFiles(event.target.files);
+        }
+
+        async function handleFiles(files) {
+            const uploadLoading = document.getElementById('uploadLoading');
+            uploadLoading.classList.add('active');
+            
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('document', file);
+                
+                try {
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showAlert(`Document "${file.name}" uploaded successfully!`, 'success');
+                    } else {
+                        showAlert(`Error uploading "${file.name}": ${result.error}`, 'error');
+                    }
+                } catch (error) {
+                    showAlert(`Error uploading "${file.name}"`, 'error');
+                }
+            }
+            
+            uploadLoading.classList.remove('active');
+            loadDocuments();
+            document.getElementById('fileInput').value = '';
+        }
+
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/api/documents');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const documentList = document.getElementById('documentList');
+                    const documentCount = document.getElementById('documentCount');
+                    
+                    documentCount.textContent = `${result.count} documents`;
+                    
+                    if (result.documents.length === 0) {
+                        documentList.innerHTML = '<p style="text-align: center; color: #666;">No documents uploaded yet</p>';
+                    } else {
+                        documentList.innerHTML = result.documents.map(doc => `
+                            <div class="document-item">
+                                <div class="document-info">
+                                    <div class="document-name">${doc.fileName}</div>
+                                    <div class="document-meta">
+                                        ${doc.fileType} • ${formatFileSize(doc.size)} • ${doc.chunks} chunks
+                                        <br>Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString()}
+                                        ${doc.accessCount > 0 ? `• Accessed ${doc.accessCount} times` : ''}
+                                    </div>
+                                </div>
+                                <div class="document-actions">
+                                    <button class="button secondary" onclick="viewDocument('${doc.id}')">View</button>
+                                    <button class="button danger" onclick="deleteDocument('${doc.id}', '${doc.fileName}')">Delete</button>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                }
+            } catch (error) {
+                showAlert('Error loading documents', 'error');
+            }
+        }
+
+        async function searchDocuments() {
+            const query = document.getElementById('searchQuery').value;
+            if (!query) {
+                showAlert('Please enter a search query', 'info');
+                return;
+            }
+            
+            const searchResults = document.getElementById('searchResults');
+            const searchResultsList = document.getElementById('searchResultsList');
+            
+            searchResults.classList.add('active');
+            searchResultsList.innerHTML = '<p>Searching...</p>';
+            
+            try {
+                const response = await fetch('/api/documents/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, limit: 5 })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.results.length > 0) {
+                    searchResultsList.innerHTML = result.results.map(item => `
+                        <div class="result-item">
+                            <strong>${item.fileName}</strong>
+                            <span class="result-score">${(item.relevanceScore * 100).toFixed(0)}%</span>
+                            <p style="margin-top: 8px; font-size: 14px; color: #666;">
+                                ${item.content.substring(0, 200)}...
+                            </p>
+                        </div>
+                    `).join('');
+                } else {
+                    searchResultsList.innerHTML = '<p>No results found</p>';
+                }
+            } catch (error) {
+                searchResultsList.innerHTML = '<p>Search error occurred</p>';
+                showAlert('Error searching documents', 'error');
+            }
+        }
+
+        async function viewDocument(documentId) {
+            try {
+                const response = await fetch(`/api/documents/${documentId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Open in new window or modal
+                    const content = result.document.content;
+                    const newWindow = window.open('', '_blank');
+                    newWindow.document.write(`
+                        <html>
+                        <head>
+                            <title>${result.document.fileName}</title>
+                            <style>
+                                body { font-family: -apple-system, sans-serif; padding: 20px; }
+                                pre { white-space: pre-wrap; }
+                            </style>
+                        </head>
+                        <body>
+                            <h1>${result.document.fileName}</h1>
+                            <pre>${content}</pre>
+                        </body>
+                        </html>
+                    `);
+                }
+            } catch (error) {
+                showAlert('Error viewing document', 'error');
+            }
+        }
+
+        async function deleteDocument(documentId, fileName) {
+            if (!confirm(`Delete "${fileName}"?`)) return;
+            
+            try {
+                const response = await fetch(`/api/documents/${documentId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`Document "${fileName}" deleted`, 'success');
+                    loadDocuments();
+                } else {
+                    showAlert('Error deleting document', 'error');
+                }
+            } catch (error) {
+                showAlert('Error deleting document', 'error');
+            }
+        }
+
+        async function clearAllDocuments() {
+            if (!confirm('Delete all documents? This cannot be undone.')) return;
+            
+            try {
+                const response = await fetch('/api/documents', {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('All documents cleared', 'success');
+                    loadDocuments();
+                } else {
+                    showAlert('Error clearing documents', 'error');
+                }
+            } catch (error) {
+                showAlert('Error clearing documents', 'error');
+            }
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' bytes';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // Load settings on page load
+        window.addEventListener('load', () => {
+            loadSettings();
+            loadDocuments();
+        });
+    </script>
 </body>
 </html>

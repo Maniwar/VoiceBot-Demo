@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Agent - Simple SDK Implementation</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-family: monospace;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status-line {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #667eea;
+            background: white;
+        }
+        .error { border-left-color: #f56565; }
+        .success { border-left-color: #48bb78; }
+        .info { border-left-color: #4299e1; }
+        .mic-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            margin-left: 10px;
+        }
+        .mic-indicator.active {
+            background: #48bb78;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Agent <span class="mic-indicator" id="micIndicator"></span></h1>
+        
+        <div>
+            <button id="connectBtn">Connect Voice Agent</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+            <button id="muteBtn" disabled>Mute</button>
+        </div>
+        
+        <div id="status"></div>
+    </div>
+
+    <!-- Load SDK -->
+    <script src="/sdk/openai-realtime-agents.umd.js"></script>
+    
+    <script>
+        let session = null;
+        let agent = null;
+        let ephemeralKey = null;
+        let isMuted = false;
+        
+        const statusEl = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const micIndicator = document.getElementById('micIndicator');
+        
+        function addStatus(message, type = 'info') {
+            const line = document.createElement('div');
+            line.className = `status-line ${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            statusEl.appendChild(line);
+            statusEl.scrollTop = statusEl.scrollHeight;
+        }
+        
+        async function getEphemeralKey() {
+            try {
+                addStatus('Requesting ephemeral key...', 'info');
+                const response = await fetch('/api/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(`Failed to get key: ${error}`);
+                }
+                
+                const data = await response.json();
+                addStatus('Ephemeral key received', 'success');
+                return data.ephemeralKey;
+            } catch (error) {
+                addStatus(`Key error: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        async function connect() {
+            try {
+                connectBtn.disabled = true;
+                
+                // Get ephemeral key
+                ephemeralKey = await getEphemeralKey();
+                
+                // Get SDK classes
+                const { RealtimeAgent, RealtimeSession } = window.OpenAIAgentsRealtime;
+                
+                // Create agent with voice-focused instructions
+                addStatus('Creating voice agent...', 'info');
+                agent = new RealtimeAgent({
+                    name: 'VoiceAssistant',
+                    instructions: `You are a helpful voice assistant. 
+                                  Speak naturally and conversationally. 
+                                  Keep responses concise and friendly.
+                                  Always respond with voice output.`,
+                    voice: 'alloy' // Set voice at agent level
+                });
+                
+                // Create session with proper configuration
+                addStatus('Creating session...', 'info');
+                session = new RealtimeSession(agent, {
+                    model: 'gpt-realtime',
+                    config: {
+                        inputAudioFormat: 'pcm16',
+                        outputAudioFormat: 'pcm16',
+                        inputAudioTranscription: {
+                            model: 'gpt-4o-mini-transcribe'
+                        },
+                        turnDetection: {
+                            type: 'semantic_vad',
+                            eagerness: 'medium',
+                            createResponse: true,
+                            interruptResponse: true
+                        }
+                    }
+                });
+                
+                // Set up event listeners
+                session.on('audio_start', () => {
+                    addStatus('🔊 Assistant is speaking', 'success');
+                    micIndicator.classList.add('active');
+                });
+                
+                session.on('audio_stopped', () => {
+                    addStatus('Assistant finished speaking', 'info');
+                    micIndicator.classList.remove('active');
+                });
+                
+                session.on('history_updated', (history) => {
+                    if (history.length > 0) {
+                        const last = history[history.length - 1];
+                        if (last.type === 'message' && last.role === 'user') {
+                            addStatus(`You said: "${last.content || '[audio]'}"`, 'info');
+                        } else if (last.type === 'message' && last.role === 'assistant') {
+                            addStatus(`Assistant: "${last.content || '[audio response]'}"`, 'success');
+                        }
+                    }
+                });
+                
+                session.on('error', (error) => {
+                    addStatus(`Error: ${error}`, 'error');
+                });
+                
+                session.on('audio_interrupted', () => {
+                    addStatus('Audio interrupted', 'info');
+                });
+                
+                // Connect with ephemeral key
+                addStatus('Connecting to OpenAI Realtime...', 'info');
+                await session.connect({ apiKey: ephemeralKey });
+                
+                addStatus('✅ Connected! You can start speaking now.', 'success');
+                addStatus('The assistant will respond with voice automatically.', 'info');
+                
+                // Enable UI
+                disconnectBtn.disabled = false;
+                muteBtn.disabled = false;
+                micIndicator.classList.add('active');
+                
+            } catch (error) {
+                addStatus(`Connection failed: ${error.message}`, 'error');
+                console.error('Connection error:', error);
+                connectBtn.disabled = false;
+            }
+        }
+        
+        function disconnect() {
+            if (session) {
+                session.close();
+                session = null;
+                addStatus('Disconnected', 'info');
+            }
+            
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+            muteBtn.disabled = true;
+            muteBtn.textContent = 'Mute';
+            isMuted = false;
+            micIndicator.classList.remove('active');
+        }
+        
+        function toggleMute() {
+            if (session) {
+                isMuted = !isMuted;
+                session.mute(isMuted);
+                muteBtn.textContent = isMuted ? 'Unmute' : 'Mute';
+                addStatus(isMuted ? 'Microphone muted' : 'Microphone unmuted', 'info');
+                
+                if (isMuted) {
+                    micIndicator.classList.remove('active');
+                } else {
+                    micIndicator.classList.add('active');
+                }
+            }
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        muteBtn.addEventListener('click', toggleMute);
+        
+        addStatus('Ready to connect. Click "Connect Voice Agent" to start.', 'info');
+    </script>
+</body>
+</html>
