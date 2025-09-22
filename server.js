@@ -266,24 +266,40 @@ app.post('/api/settings', async (req, res) => {
 app.get('/api/apikeys', async (req, res) => {
   try {
     const apiKeys = await configManager.loadApiKeys();
-    // Mask sensitive data before sending
-    const masked = {};
-    for (const [key, config] of Object.entries(apiKeys)) {
-      masked[key] = {};
-      for (const [field, value] of Object.entries(config || {})) {
-        if (field.toLowerCase().includes('key') || 
-            field.toLowerCase().includes('secret')) {
-          masked[key][field] = value ? '***' + value.slice(-4) : '';
-        } else {
-          masked[key][field] = value;
-        }
-      }
-    }
-    res.json(masked);
+    // Return actual keys for admin panel (this is a local admin interface)
+    // In production, you'd want proper authentication here
+    res.json(apiKeys);
   } catch (error) {
     logger.error('Get API keys error:', error);
     res.status(500).json({ 
       error: 'Failed to get API keys',
+      message: error.message 
+    });
+  }
+});
+
+// Get masked API keys (for display purposes)
+app.get('/api/apikeys/status', async (req, res) => {
+  try {
+    const apiKeys = await configManager.loadApiKeys();
+    // Return masked version showing only configuration status
+    const status = {};
+    for (const [key, config] of Object.entries(apiKeys)) {
+      status[key] = {};
+      for (const [field, value] of Object.entries(config || {})) {
+        if (field.toLowerCase().includes('key') || 
+            field.toLowerCase().includes('secret')) {
+          status[key][field] = value ? true : false; // Just show if configured
+        } else {
+          status[key][field] = value;
+        }
+      }
+    }
+    res.json(status);
+  } catch (error) {
+    logger.error('Get API keys status error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get API keys status',
       message: error.message 
     });
   }
