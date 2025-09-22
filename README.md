@@ -1,251 +1,133 @@
-# 🎙️ VoiceBot Demo - Real-time Voice Assistant
+# 🎙️ VoiceBot Demo - Real-time Voice Assistant with RAG
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/YOUR_USERNAME/VoiceBot-Demo)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-
-A production-ready real-time voice assistant powered by OpenAI's Realtime API, featuring RAG capabilities, flight search, and seamless API orchestration.
+A production-ready real-time voice assistant powered by OpenAI's Realtime API, featuring document management with RAG capabilities, web search, weather, and flight search.
 
 ## ✨ Features
 
-- 🎙️ **Real-time Voice Interaction** - Natural conversations using OpenAI's Realtime API
-- 📚 **RAG (Retrieval-Augmented Generation)** - Upload and query your own documents
-- ✈️ **Flight Search** - Integrated Amadeus API for real-time flight information
-- 🔌 **API Orchestration** - Connect to 40+ external APIs
-- 🌐 **WebSocket Support** - Low-latency bidirectional communication
-- 📱 **Responsive Web Interface** - Works on desktop and mobile
-- 🚀 **Production Ready** - Docker support, health checks, logging
-
-## 🖼️ Demo
-
-Try the live demo: [Coming Soon]
-
-![VoiceBot Demo](docs/images/demo.gif)
+- 🎤 **Real-time Voice Interaction** - Natural conversations using OpenAI's Realtime API (WebRTC)
+- 📚 **RAG System** - Upload and search through documents (PDF, TXT, MD, CSV, JSON, images)
+- 🔍 **Web Search** - Google Custom Search integration
+- ✈️ **Flight Search** - Amadeus API for flight information
+- 🌤️ **Weather** - OpenWeather API integration
+- 🔐 **Secure API Management** - Encrypted storage for API keys
+- 🎛️ **Admin Panel** - Complete control over bot settings and features
 
 ## 🚀 Quick Start
 
-### Option 1: Deploy to Render (FREE - Recommended)
+### Prerequisites
+- Node.js 18+ 
+- OpenAI API key with Realtime API access
 
-1. Click the "Deploy to Render" button above
-2. Add your `OPENAI_API_KEY` in environment variables
-3. Your app will be live in ~5 minutes!
-
-### Option 2: Run Locally
+### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/VoiceBot-Demo.git
+git clone https://github.com/Maniwar/VoiceBot-Demo.git
 cd VoiceBot-Demo
 
-# Copy environment variables
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-
 # Install dependencies
-pip install -r requirements.txt
+npm install
 
-# Run the server
-python src/server.py
+# Copy environment example
+cp .env.example .env
 
-# Open browser to http://localhost:3000
+# Edit .env and add your OpenAI API key
+# OPENAI_API_KEY=your-api-key-here
+
+# Start the server
+npm start
 ```
 
-### Option 3: Docker
+### Access the Application
 
-```bash
-# Build and run with Docker Compose
-docker-compose up
+- **Voice Assistant**: http://localhost:3000
+- **Admin Panel**: http://localhost:3000/admin.html
 
-# Or build manually
-docker build -t voicebot .
-docker run -p 3000:3000 --env-file .env voicebot
-```
-
-## 📋 Prerequisites
-
-- Python 3.11+
-- OpenAI API key with Realtime API access
-- (Optional) Amadeus API credentials for flight search
-- (Optional) Docker for containerization
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file with:
-
-```bash
-# Required
-OPENAI_API_KEY=sk-your-key-here
-OPENAI_MODEL=gpt-4o-realtime-preview-2024-12-17
-
-# Optional
-PORT=3000
-LOG_LEVEL=info
-
-# For flight search (optional)
-# Configure in data/api_config.json
-```
-
-### API Configuration
-
-Edit `data/api_config.json` to add your API keys for external services:
-- Amadeus (flight search)
-- Google Custom Search
-- Other APIs
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│            Web Browser Client                │
-│         (HTML/JavaScript/WebRTC)             │
-└─────────────────────────────────────────────┘
-                      ↕ WebSocket
-┌─────────────────────────────────────────────┐
-│             FastAPI Server                   │
-│         (WebSocket Handler + API)            │
-├─────────────────────────────────────────────┤
-│   • OpenAI Realtime API Integration          │
-│   • RAG Pipeline (ChromaDB)                  │
-│   • Flight Search (Amadeus)                  │
-│   • API Orchestration                        │
-└─────────────────────────────────────────────┘
-                      ↕
-┌─────────────────────────────────────────────┐
-│           External Services                  │
-│   OpenAI │ Amadeus │ Google │ Others        │
-└─────────────────────────────────────────────┘
-```
-
-## 🎯 Usage Examples
-
-### Voice Commands
-
-- **General Chat**: "Hello, how are you today?"
-- **RAG Query**: "What does the uploaded document say about pricing?"
-- **Flight Search**: "Find flights from New York to London tomorrow"
-- **Weather**: "What's the weather in San Francisco?"
-- **Web Search**: "Search for the latest news about AI"
-
-### Uploading Documents for RAG
-
-1. Click "Upload Document" in the admin panel
-2. Select PDF, TXT, or MD files
-3. Documents are automatically processed and indexed
-4. Query with: "What does the document say about..."
-
-## 💻 Development
-
-### Project Structure
+## 📁 Project Structure
 
 ```
 VoiceBot-Demo/
-├── src/                    # Source code
-│   ├── server.py          # Main FastAPI server
-│   ├── flight_handler.py  # Flight search logic
-│   └── ...
-├── public/                 # Frontend files
-│   ├── index.html         # Main interface
-│   ├── app.js            # Client-side logic
-│   └── ...
-├── data/                   # Configuration
-│   └── api_config.json    # API settings
-├── requirements.txt        # Python dependencies
-├── Dockerfile             # Container config
-├── docker-compose.yml     # Docker orchestration
-└── render.yaml            # Render deployment
+├── server.js                 # Express server with all endpoints
+├── public/
+│   ├── index.html           # Main voice interface
+│   ├── admin.html           # Admin control panel
+│   └── voice-agent.html     # Voice agent implementation
+├── src/
+│   ├── agents/              # Voice agent configurations
+│   ├── services/            # Core services
+│   │   ├── configManager.js # Settings and API key management
+│   │   └── documentManager.js # Document storage and RAG
+│   └── tools/               # API integrations
+│       ├── simpleRagTool.js # Document search tools
+│       ├── googleSearchTool.js # Web search
+│       ├── weatherTool.js   # Weather information
+│       └── flightSearchTool.js # Flight search
+├── documents/               # Uploaded documents (auto-created)
+├── uploads/                 # Temporary upload directory
+└── config/                  # Configuration files
 ```
 
-### Adding New Features
+## 🎛️ Admin Panel Features
 
-1. **New API Integration**: Edit `data/api_config.json`
-2. **Custom Functions**: Add to `src/server.py` in `handle_function_call()`
-3. **Frontend Changes**: Edit files in `public/`
+### Bot Settings
+- Voice selection (10+ voices available)
+- Model configuration (gpt-4o-realtime-preview)
+- Personality and behavior customization
+- Session management settings
 
-### Running Tests
+### Document Management
+- Drag-and-drop file upload
+- Support for PDF, TXT, MD, CSV, JSON, PNG, JPG
+- Semantic search with embeddings
+- Document library management
 
-```bash
-# Basic functionality test
-python test_basic.py
+### API Configuration
+- OpenAI API settings
+- Google Custom Search setup
+- Amadeus flight search
+- OpenWeather configuration
+- Encrypted storage for all credentials
 
-# Flight API test
-python test_voice_flight.py
-```
+## 🔧 API Setup
 
-## 🚀 Deployment
+### Google Search
+1. Get API key from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create Custom Search Engine at [Programmable Search Engine](https://programmablesearchengine.google.com)
+3. Add credentials in Admin Panel > API Configuration
 
-### Free Hosting Options
+### Amadeus Flight Search
+1. Register at [Amadeus for Developers](https://developers.amadeus.com)
+2. Get Client ID and Secret
+3. Configure in Admin Panel (Sandbox mode available)
 
-1. **Render.com** (Recommended)
-   - WebSocket support
-   - Auto-deploy from GitHub
-   - 750 hours free/month
+### OpenWeather
+1. Sign up at [OpenWeather](https://openweathermap.org/api)
+2. Get API key
+3. Add to Admin Panel configuration
 
-2. **Railway.app**
-   - $5 credit
-   - Better performance
-   - No sleep
+## 🎤 Voice Commands Examples
 
-3. **Google Cloud Run**
-   - 2M requests free/month
-   - Auto-scaling
-
-See [FREE_HOSTING_GUIDE.md](FREE_HOSTING_GUIDE.md) for detailed instructions.
-
-### Production Deployment (AWS)
-
-See [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) for:
-- ECS Fargate setup
-- Auto-scaling configuration
-- CloudFront CDN
-- Cost optimization
-
-## 📚 Documentation
-
-- [AWS Deployment Guide](AWS_DEPLOYMENT_GUIDE.md)
-- [Free Hosting Guide](FREE_HOSTING_GUIDE.md)
-- [Flight API Documentation](FLIGHT_API_IMPROVEMENTS.md)
-- [Demo Guide](DEMO_GUIDE.md)
-- [RAG Setup](HOW_TO_DEMO_RAG.md)
+- "Search for [topic] in my documents"
+- "What's the weather in New York?"
+- "Find flights from JFK to LAX next Monday"
+- "Search the web for latest AI news"
+- "List all uploaded documents"
 
 ## 🔒 Security
 
-- Never commit `.env` files
-- Use environment variables for secrets
-- Enable HTTPS in production
-- Regular dependency updates
-- Input validation on all endpoints
+- API keys are encrypted using AES-256-GCM
+- Sensitive data stored in `.env` (not committed)
+- Configuration files in `config/` directory (gitignored)
+- Session-based ephemeral keys for WebRTC
+
+## 📝 License
+
+MIT
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please:
+Pull requests are welcome! For major changes, please open an issue first.
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+## 🆘 Support
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- OpenAI for the Realtime API
-- Amadeus for flight data
-- The open-source community
-
-## 💬 Support
-
-- **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/VoiceBot-Demo/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/VoiceBot-Demo/discussions)
-
-## 🌟 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=YOUR_USERNAME/VoiceBot-Demo&type=Date)](https://star-history.com/#YOUR_USERNAME/VoiceBot-Demo&Date)
-
----
-
-**Built with ❤️ using OpenAI's Realtime API**
+For issues or questions, please open a GitHub issue.
