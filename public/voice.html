@@ -1801,11 +1801,11 @@
                                             
                                             markdown += `---\n\n`;
                                         });
+                                    } else {
+                                        return `No results found for "${args.query}". Please try a different search term.`;
                                     }
                                     
                                     return markdown;
-                                } else {
-                                    return `No results found for "${args.query}". Please try a different search term.`;
                                 }
                             } catch (apiError) {
                                 console.error('Google API error:', apiError);
