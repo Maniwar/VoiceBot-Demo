@@ -1721,12 +1721,12 @@
 
             const googleSearchTool = wrapTool({
                 name: 'search_google',
-                description: 'Search the web for current information, news, facts, images, and videos. Use this when users ask about current events, general knowledge, or need information not in uploaded documents.',
+                description: 'Search the web or images. When users ask for images/pictures/photos, set searchType to "image". The results will show as clickable images. Keep your response brief - just describe what you found, no need to list URLs.',
                 parameters: {
                     type: 'object',
                     properties: {
                         query: { type: 'string', description: 'Search query' },
-                        searchType: { type: 'string', enum: ['web', 'image'], default: 'web' },
+                        searchType: { type: 'string', enum: ['web', 'image'], default: 'web', description: 'Use "image" when user asks for pictures/images/photos' },
                         num: { type: 'number', default: 5 }
                     },
                     required: ['query']
@@ -1760,45 +1760,48 @@
                                     throw new Error(data.error.message);
                                 }
                                 
-                                // Format as rich markdown with images
-                                let markdown = `## 🔍 Search Results: "${args.query}"\n\n`;
-                                if (data.searchInformation) {
-                                    markdown += `*Found ${data.searchInformation.totalResults} results*\n\n`;
-                                }
-                                
-                                if (data.items && data.items.length > 0) {
-                                    data.items.forEach((item, idx) => {
-                                        markdown += `### ${idx + 1}. [${item.title}](${item.link})\n`;
-                                        markdown += `🔗 *${item.displayLink}*\n\n`;
-                                        
-                                        // For image search, use the link directly as image
-                                        if (args.searchType === 'image' && item.link) {
-                                            markdown += `![${item.title}](${item.link})\n\n`;
-                                        } else {
-                                            // For web search, try to find images in pagemap
+                                // Format results cleanly - images for image search, text for web search
+                                if (args.searchType === 'image') {
+                                    // Clean image grid for image searches
+                                    let markdown = `## 🖼️ Image Results: "${args.query}"\n\n`;
+                                    
+                                    if (data.items && data.items.length > 0) {
+                                        data.items.forEach((item, idx) => {
+                                            // Make images clickable by wrapping in link
+                                            const imageUrl = item.link;
+                                            const pageUrl = item.image?.contextLink || item.displayLink || item.link;
+                                            const title = item.title || `Image ${idx + 1}`;
+                                            
+                                            // Show image as clickable link
+                                            markdown += `[![${title}](${imageUrl})](${pageUrl})\n\n`;
+                                        });
+                                    }
+                                    
+                                    return markdown;
+                                } else {
+                                    // Regular web search with cleaner formatting
+                                    let markdown = `## 🔍 Search Results: "${args.query}"\n\n`;
+                                    
+                                    if (data.items && data.items.length > 0) {
+                                        data.items.forEach((item, idx) => {
+                                            markdown += `### ${idx + 1}. [${item.title}](${item.link})\n`;
+                                            
+                                            // Add image if available
                                             const mainImage = item.pagemap?.cse_image?.[0]?.src || 
                                                              item.pagemap?.imageobject?.[0]?.url ||
                                                              item.pagemap?.metatags?.[0]?.['og:image'];
                                             if (mainImage) {
-                                                markdown += `![${item.title}](${mainImage})\n\n`;
-                                            } else if (item.pagemap?.cse_thumbnail?.[0]?.src) {
-                                                // Use thumbnail as fallback
-                                                markdown += `![Thumbnail](${item.pagemap.cse_thumbnail[0].src})\n\n`;
+                                                markdown += `[![Image](${mainImage})](${item.link})\n\n`;
                                             }
-                                        }
-                                        
-                                        // Add snippet
-                                        if (item.snippet) {
-                                            markdown += `${item.snippet}\n\n`;
-                                        }
-                                        
-                                        // Add video indicator if available
-                                        if (item.pagemap?.videoobject?.[0]) {
-                                            markdown += `📹 **[Video Available](${item.link})**\n\n`;
-                                        }
-                                        
-                                        markdown += `---\n\n`;
-                                    });
+                                            
+                                            // Add snippet
+                                            if (item.snippet) {
+                                                markdown += `${item.snippet}\n\n`;
+                                            }
+                                            
+                                            markdown += `---\n\n`;
+                                        });
+                                    }
                                     
                                     return markdown;
                                 } else {
@@ -2267,7 +2270,8 @@
                     transport.on('response.created', (event) => {
                         // console.log('Response created:', event);  // Reduced logging
                         currentAssistantMessage = '';
-                        // Don't reset currentAssistantMessageDiv here - let it be created when transcript arrives
+                        // Reset the div for each new response to prevent overwriting
+                        currentAssistantMessageDiv = null;
                         elements.visualizer.classList.add('active', 'thinking');
                     });
 
