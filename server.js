@@ -6,12 +6,13 @@ import { dirname, join } from 'path';
 import multer from 'multer';
 import winston from 'winston';
 import configManager from './src/services/configManager.js';
-// Use Pinecone-powered document manager if available, otherwise fall back to standard
+// Use Pinecone document manager (falls back to local if no API key)
 import pineconeDocumentManager from './src/services/pineconeDocumentManager.js';
 const documentManager = pineconeDocumentManager;
 import { GoogleSearchTool } from './src/tools/googleSearchTool.js';
 import { FreeWeatherTool } from './src/tools/freeWeatherTool.js';
 import { FlightSearchTool } from './src/tools/flightSearchTool.js';
+import agenticRagTool from './src/tools/agenticRagTool.js';
 import OpenAI from 'openai';
 
 // Load environment variables
@@ -175,6 +176,28 @@ app.post('/api/documents/search', async (req, res) => {
     logger.error('Search error:', error);
     res.status(500).json({ 
       error: 'Search failed',
+      message: error.message 
+    });
+  }
+});
+
+// Agentic search endpoint - uses reasoning and multiple retrieval attempts
+app.post('/api/documents/agentic-search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+    
+    logger.info('Agentic search for:', query);
+    const results = await agenticRagTool.handler({ query });
+    res.json(results);
+    
+  } catch (error) {
+    logger.error('Agentic search error:', error);
+    res.status(500).json({ 
+      error: 'Agentic search failed',
       message: error.message 
     });
   }

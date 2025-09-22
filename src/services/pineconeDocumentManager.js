@@ -654,13 +654,22 @@ class PineconeDocumentManager {
         try {
             // Delete from Pinecone if available
             if (this.index) {
-                const chunkIds = [];
-                for (let i = 0; i < doc.chunks; i++) {
-                    chunkIds.push(`${documentId}_chunk_${i}`);
-                }
-                
-                if (chunkIds.length > 0) {
-                    await this.index.namespace(this.namespace).deleteMany(chunkIds);
+                try {
+                    const chunkIds = [];
+                    // Add the main document ID
+                    chunkIds.push(documentId);
+                    // Add all chunk IDs
+                    for (let i = 0; i < doc.chunks; i++) {
+                        chunkIds.push(`${documentId}_chunk_${i}`);
+                    }
+                    
+                    if (chunkIds.length > 0) {
+                        // Use the correct Pinecone delete method - deleteMany for multiple IDs
+                        await this.index.namespace(this.namespace).deleteMany(chunkIds);
+                    }
+                } catch (pineconeError) {
+                    console.warn('Pinecone delete warning:', pineconeError.message);
+                    // Continue with local deletion even if Pinecone fails
                 }
             }
             

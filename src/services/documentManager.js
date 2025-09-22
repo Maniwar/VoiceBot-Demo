@@ -362,16 +362,21 @@ class DocumentManager {
                     
                     // Calculate term frequency and match score
                     for (const queryWord of queryWords) {
-                        if (chunkLower.includes(queryWord)) {
-                            // Count occurrences (term frequency)
-                            const occurrences = (chunkLower.match(new RegExp(queryWord, 'g')) || []).length;
-                            keywordScore += Math.min(occurrences * 0.1, 0.3); // Cap contribution per word
-                            
-                            // Boost for exact phrase matches
-                            if (chunk.toLowerCase().includes(query.toLowerCase())) {
-                                semanticBoost = 0.3;
+                        if (queryWord.length > 1) { // Include short terms like "TV"
+                            // Use word boundary regex for exact matches
+                            const regex = new RegExp(`\\b${queryWord}\\b`, 'gi');
+                            const occurrences = (chunkLower.match(regex) || []).length;
+                            if (occurrences > 0) {
+                                // Weight by inverse document frequency (IDF-like)
+                                const tf = occurrences / chunkWords.length; // Term frequency
+                                keywordScore += tf * 2; // Higher weight for term frequency
                             }
                         }
+                    }
+                    
+                    // Boost for exact phrase matches
+                    if (chunk.toLowerCase().includes(query.toLowerCase())) {
+                        semanticBoost = 0.4;
                     }
                     
                     // Normalize keyword score
@@ -398,11 +403,10 @@ class DocumentManager {
                     };
                 });
                 
-                // Get top 5 chunks from each document for more context
+                // Get ALL chunks that have any relevance - let reranking handle selection
                 const topChunks = chunkScores
-                    .filter(chunk => chunk.score > 0.05) // Lower threshold for more results
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 5);
+                    .filter(chunk => chunk.score > 0) // Include any chunk with a score
+                    .sort((a, b) => b.score - a.score);
                 
                 results.push(...topChunks);
             }
@@ -418,11 +422,10 @@ class DocumentManager {
                 const docId = result.documentId;
                 if (!docCounts[docId]) docCounts[docId] = 0;
                 
-                if (docCounts[docId] < 5) {
-                    diverseResults.push(result);
-                    docCounts[docId]++;
-                    if (diverseResults.length >= limit) break;
-                }
+                // Following Pinecone best practice - don't limit chunks per document
+                diverseResults.push(result);
+                docCounts[docId]++;
+                if (diverseResults.length >= limit) break;
             }
             
             const topResults = diverseResults;

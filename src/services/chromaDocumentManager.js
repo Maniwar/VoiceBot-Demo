@@ -5,8 +5,7 @@ import Papa from 'papaparse';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import xlsx from 'xlsx';
-import { ChromaClient } from 'chromadb';
-import { OpenAIEmbeddingFunction } from 'chromadb';
+import { ChromaClient, OpenAIEmbeddingFunction } from 'chromadb';
 
 class ChromaDocumentManager {
     constructor() {

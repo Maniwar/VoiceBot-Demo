@@ -22,8 +22,9 @@ export const ragSearchToolDefinition = {
 };
 
 // Tool handler for server-side execution
-export async function handleRagSearch({ query, limit = 3 }) {
+export async function handleRagSearch({ query, limit = 8 }) {
     try {
+        // Search for more chunks to ensure we find all relevant content
         const results = await documentManager.searchDocuments(query, limit);
         
         if (!results.success || results.results.length === 0) {
@@ -34,18 +35,118 @@ export async function handleRagSearch({ query, limit = 3 }) {
             };
         }
         
-        // Format results for voice response
-        let response = `Found ${results.resultsCount} relevant documents:\n\n`;
+        // Format results with proper citations and snippets
+        let response = `Based on searching ${results.resultsCount} relevant sources:\n\n`;
         
-        results.results.forEach((result, idx) => {
-            response += `From "${result.fileName}" (relevance: ${(result.relevanceScore * 100).toFixed(0)}%):\n`;
-            response += `${result.content.substring(0, 300)}...\n\n`;
+        // Group results by document for better citation
+        const documentGroups = {};
+        results.results.forEach(result => {
+            if (!documentGroups[result.fileName]) {
+                documentGroups[result.fileName] = [];
+            }
+            documentGroups[result.fileName].push(result);
         });
+        
+        // Format each document's relevant content
+        Object.entries(documentGroups).forEach(([fileName, docResults], docIdx) => {
+            response += `📄 **Source: ${fileName}**\n`;
+            response += `   *Relevance: ${(Math.max(...docResults.map(r => r.relevanceScore)) * 100).toFixed(0)}%*\n\n`;
+            
+            docResults.forEach((result, idx) => {
+                // Extract the most relevant snippet containing query terms
+                const snippet = result.content.trim();
+                const queryLower = query.toLowerCase();
+                const snippetLower = snippet.toLowerCase();
+                
+                // Find the best matching section
+                let displaySnippet = '';
+                const maxLength = 500;
+                const contextPadding = 150; // Characters to show before/after match
+                
+                // Try to find where query terms appear in the snippet
+                const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+                let bestMatchIndex = -1;
+                let bestMatchScore = 0;
+                
+                // Find the position with the most query terms nearby
+                for (let i = 0; i < snippetLower.length - 100; i += 50) {
+                    const window = snippetLower.substring(i, Math.min(i + 200, snippetLower.length));
+                    let score = 0;
+                    queryWords.forEach(word => {
+                        if (window.includes(word)) score++;
+                    });
+                    if (score > bestMatchScore) {
+                        bestMatchScore = score;
+                        bestMatchIndex = i;
+                    }
+                }
+                
+                // Extract snippet around the best match
+                if (bestMatchIndex >= 0) {
+                    const start = Math.max(0, bestMatchIndex - contextPadding);
+                    const end = Math.min(snippet.length, bestMatchIndex + maxLength - contextPadding);
+                    displaySnippet = snippet.substring(start, end);
+                    
+                    // Clean up the snippet edges at sentence boundaries
+                    if (start > 0) {
+                        const firstPeriod = displaySnippet.indexOf('. ');
+                        if (firstPeriod > 0 && firstPeriod < 100) {
+                            displaySnippet = '...' + displaySnippet.substring(firstPeriod + 1);
+                        } else {
+                            displaySnippet = '...' + displaySnippet;
+                        }
+                    }
+                    
+                    if (end < snippet.length) {
+                        const lastPeriod = displaySnippet.lastIndexOf('.');
+                        const lastQuestion = displaySnippet.lastIndexOf('?');
+                        const lastExclaim = displaySnippet.lastIndexOf('!');
+                        const lastBoundary = Math.max(lastPeriod, lastQuestion, lastExclaim);
+                        
+                        if (lastBoundary > displaySnippet.length - 100) {
+                            displaySnippet = displaySnippet.substring(0, lastBoundary + 1);
+                        } else {
+                            displaySnippet += '...';
+                        }
+                    }
+                } else {
+                    // Fallback to showing the beginning of the snippet
+                    displaySnippet = snippet.substring(0, maxLength);
+                    const lastPeriod = displaySnippet.lastIndexOf('.');
+                    if (lastPeriod > 200) {
+                        displaySnippet = displaySnippet.substring(0, lastPeriod + 1);
+                    } else if (snippet.length > maxLength) {
+                        displaySnippet += '...';
+                    }
+                }
+                
+                // Highlight matching terms in the snippet (using markdown bold)
+                queryWords.forEach(word => {
+                    if (word.length > 2) {
+                        const regex = new RegExp(`\\b(${word}\\w*)\\b`, 'gi');
+                        displaySnippet = displaySnippet.replace(regex, '**$1**');
+                    }
+                });
+                
+                response += `   > "${displaySnippet.trim()}"\n`;
+                
+                // Add chunk reference if multiple chunks
+                if (result.chunkIndex !== undefined && docResults.length > 1) {
+                    response += `   *(Section ${result.chunkIndex + 1})*\n`;
+                }
+                response += '\n';
+            });
+        });
+        
+        // Add citation summary
+        const sourceCount = Object.keys(documentGroups).length;
+        response += `\n---\n*Citations: ${sourceCount} source${sourceCount > 1 ? 's' : ''} referenced*`;
         
         return {
             success: true,
             message: response,
-            results: results.results
+            results: results.results,
+            citations: Object.keys(documentGroups)
         };
         
     } catch (error) {

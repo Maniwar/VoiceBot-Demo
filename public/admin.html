@@ -881,6 +881,29 @@
                         <div id="weatherStatus" class="status pending">Not validated</div>
                     </div>
                 </div>
+
+                <div class="card">
+                    <h2>Pinecone Vector Database</h2>
+                    <div class="api-group">
+                        <div class="api-header">
+                            <span class="api-title">Pinecone API</span>
+                            <button class="validate-btn" onclick="validateApi('pinecone')">Validate</button>
+                        </div>
+                        <div class="form-group">
+                            <label for="pineconeApiKey">API Key</label>
+                            <input type="password" id="pineconeApiKey" placeholder="pcsk_...">
+                        </div>
+                        <div class="form-group">
+                            <label for="pineconeEnvironment">Environment</label>
+                            <input type="text" id="pineconeEnvironment" placeholder="us-east-1 (optional)">
+                        </div>
+                        <div class="form-group">
+                            <label for="pineconeIndexName">Index Name</label>
+                            <input type="text" id="pineconeIndexName" placeholder="voicebot-docs (default: voicebot-docs)">
+                        </div>
+                        <div id="pineconeStatus" class="status pending">Not validated</div>
+                    </div>
+                </div>
             </div>
             
             <!-- Custom APIs Section -->
@@ -1226,6 +1249,12 @@ Format responses with [formatting guidelines].</textarea>
                         document.getElementById('weatherKey').value = apis.openweather.apiKey || '';
                         document.getElementById('weatherUnits').value = apis.openweather.units || 'metric';
                     }
+                    
+                    if (apis.pinecone) {
+                        document.getElementById('pineconeApiKey').value = apis.pinecone.apiKey || '';
+                        document.getElementById('pineconeEnvironment').value = apis.pinecone.environment || '';
+                        document.getElementById('pineconeIndexName').value = apis.pinecone.indexName || '';
+                    }
                 }
             } catch (error) {
                 console.error('Error loading API keys:', error);
@@ -1315,6 +1344,13 @@ Format responses with [formatting guidelines].</textarea>
                     units: document.getElementById('weatherUnits').value,
                     enabled: true,
                     category: 'weather'
+                },
+                pinecone: {
+                    apiKey: document.getElementById('pineconeApiKey').value,
+                    environment: document.getElementById('pineconeEnvironment').value,
+                    indexName: document.getElementById('pineconeIndexName').value,
+                    enabled: true,
+                    category: 'database'
                 }
             };
             
@@ -1584,7 +1620,7 @@ Format responses with [formatting guidelines].</textarea>
                 const apis = await response.json();
                 
                 // Filter out standard APIs to get custom ones
-                const standardApis = ['openai', 'google', 'amadeus', 'openweather'];
+                const standardApis = ['openai', 'google', 'amadeus', 'openweather', 'pinecone'];
                 customApis = {};
                 
                 for (const [key, value] of Object.entries(apis)) {
@@ -1772,6 +1808,13 @@ Format responses with [formatting guidelines].</textarea>
                     units: document.getElementById('weatherUnits').value,
                     enabled: true,
                     category: 'weather'
+                },
+                pinecone: {
+                    apiKey: document.getElementById('pineconeApiKey').value,
+                    environment: document.getElementById('pineconeEnvironment').value,
+                    indexName: document.getElementById('pineconeIndexName').value,
+                    enabled: true,
+                    category: 'database'
                 },
                 ...customApis  // Include all custom APIs
             };

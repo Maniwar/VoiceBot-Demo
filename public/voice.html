@@ -88,8 +88,8 @@
             display: grid;
             grid-template-rows: auto 1fr auto;
             height: 100vh;
-            max-width: 1400px;
-            margin: 0 auto;
+            width: 100%;
+            padding: 0 2rem;
         }
 
         /* Header */
@@ -897,6 +897,7 @@
                 <button class="secondary-button" id="muteButton">🔇 Mute</button>
                 <button class="secondary-button" onclick="clearConversation()">🗑️ Clear</button>
                 <button class="secondary-button" id="interruptButton">⏹️ Stop</button>
+                <button class="secondary-button" id="disconnectButton">🔌 Disconnect</button>
                 <button class="secondary-button" onclick="downloadTranscript()">💾 Download</button>
             </div>
         </div>
@@ -992,6 +993,7 @@
                 // transcriptBubble removed - using inline messages
                 muteButton: document.getElementById('muteButton'),
                 interruptButton: document.getElementById('interruptButton'),
+                disconnectButton: document.getElementById('disconnectButton'),
                 documentsToggle: document.getElementById('documentsToggle'),
                 documentPanel: document.getElementById('documentPanel'),
                 documentList: document.getElementById('documentList'),
@@ -1617,7 +1619,7 @@
             // Create proper tool definition for SDK
             const searchDocumentsTool = tool ? tool({
                 name: 'search_documents',
-                description: 'Search through uploaded documents. ALWAYS use this when users ask ANY question about documents, data, or information. Extract keywords automatically from their question - never ask what to search for.',
+                description: 'Advanced search that reasons about your query and performs multiple retrieval attempts to find the best information. ALWAYS use this when users ask ANY question about documents, data, or information.',
                 parameters: {
                     type: 'object',
                     properties: {
@@ -1635,8 +1637,28 @@
                 },
                 async execute(args) {
                     try {
-                        addMessage('tool', `📚 Searching documents for: "${args.query}"`); 
+                        addMessage('tool', `🧠 Using agentic search with reasoning for: "${args.query}"`); 
                         
+                        // First try agentic search for better results
+                        const agenticResponse = await fetch('/api/documents/agentic-search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                query: args.query
+                            })
+                        });
+                        
+                        const agenticResults = await agenticResponse.json();
+                        
+                        // If agentic search succeeds, use its formatted response
+                        if (agenticResults.success && agenticResults.message) {
+                            setTimeout(() => {
+                                addMessage('assistant', agenticResults.message);
+                            }, 100);
+                            return agenticResults.message;
+                        }
+                        
+                        // Fallback to regular search if agentic fails
                         const response = await fetch('/api/documents/search', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -1649,24 +1671,113 @@
                         const results = await response.json();
                         
                         if (results.results && results.results.length > 0) {
-                            let formattedResponse = `Found ${results.results.length} relevant sections:\n\n`;
-                            results.results.forEach((result, idx) => {
-                                const score = result.relevanceScore || result.score || 0;
-                                formattedResponse += `**Result ${idx + 1}**`;
-                                if (score > 0) {
-                                    formattedResponse += ` (Score: ${score.toFixed(2)})`;
+                            // Group results by document for better presentation
+                            const documentGroups = {};
+                            results.results.forEach(result => {
+                                const fileName = result.fileName || result.documentName || 'Unknown';
+                                if (!documentGroups[fileName]) {
+                                    documentGroups[fileName] = [];
                                 }
-                                formattedResponse += `:\n`;
-                                formattedResponse += `📄 From: ${result.fileName || result.documentName || 'Unknown'}\n`;
+                                documentGroups[fileName].push(result);
+                            });
+                            
+                            let formattedResponse = `**Sources:** ${Object.keys(documentGroups).length} document${Object.keys(documentGroups).length > 1 ? 's' : ''}\n\n`;
+                            
+                            // Format results following Pinecone RAG best practices
+                            Object.entries(documentGroups).forEach(([fileName, docResults]) => {
+                                const maxScore = Math.max(...docResults.map(r => r.relevanceScore || r.score || 0));
+                                formattedResponse += `📄 **${fileName}** (${(maxScore * 100).toFixed(0)}%)\n`;
                                 
-                                // Return full content for the assistant to read
-                                if (result.content && result.content.length > 0) {
-                                    formattedResponse += `\n${result.content}\n\n`;
-                                } else if (result.snippet) {
-                                    // Fallback to snippet if no full content
-                                    formattedResponse += `> ${result.snippet}\n\n`;
+                                // Process ALL chunks to find the best matching content
+                                const queryWords = args.query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                                let bestSnippets = [];
+                                
+                                // Search through all result chunks for relevant content
+                                docResults.forEach(result => {
+                                    const content = result.content || result.snippet || '';
+                                    const contentLower = content.toLowerCase();
+                                    
+                                    // Search entire content with sliding window
+                                    for (let i = 0; i < contentLower.length; i += 50) {
+                                        const windowStart = Math.max(0, i - 100);
+                                        const windowEnd = Math.min(contentLower.length, i + 350);
+                                        const window = contentLower.substring(windowStart, windowEnd);
+                                        
+                                        // Score this window
+                                        let score = 0;
+                                        let matchPositions = [];
+                                        queryWords.forEach(word => {
+                                            const regex = new RegExp(`\\b${word}`, 'gi');
+                                            const matches = window.match(regex) || [];
+                                            score += matches.length * 3;
+                                            if (matches.length > 0) {
+                                                matchPositions.push(window.indexOf(matches[0]));
+                                            }
+                                        });
+                                        
+                                        // Boost score if query words are close together
+                                        if (matchPositions.length > 1) {
+                                            const spread = Math.max(...matchPositions) - Math.min(...matchPositions);
+                                            if (spread < 100) score += 5;
+                                        }
+                                        
+                                        if (score > 2) {
+                                            bestSnippets.push({
+                                                text: content.substring(windowStart, windowEnd),
+                                                score: score,
+                                                start: windowStart
+                                            });
+                                        }
+                                    }
+                                });
+                                
+                                // Sort and get best snippets
+                                bestSnippets.sort((a, b) => b.score - a.score);
+                                const topSnippet = bestSnippets[0];
+                                
+                                if (topSnippet) {
+                                    let snippet = topSnippet.text;
+                                    
+                                    // Clean up edges at sentence boundaries
+                                    const firstSentence = snippet.indexOf('. ');
+                                    const lastSentence = snippet.lastIndexOf('. ');
+                                    if (topSnippet.start > 0 && firstSentence > 0 && firstSentence < 80) {
+                                        snippet = '...' + snippet.substring(firstSentence + 2);
+                                    } else if (topSnippet.start > 0) {
+                                        snippet = '...' + snippet;
+                                    }
+                                    
+                                    if (snippet.length > 400) {
+                                        if (lastSentence > 300) {
+                                            snippet = snippet.substring(0, lastSentence + 1);
+                                        } else {
+                                            snippet = snippet.substring(0, 400) + '...';
+                                        }
+                                    }
+                                    
+                                    // Highlight matching terms
+                                    queryWords.forEach(word => {
+                                        const regex = new RegExp(`\\b(${word}\\w*)\\b`, 'gi');
+                                        snippet = snippet.replace(regex, '**$1**');
+                                    });
+                                    
+                                    formattedResponse += `> ${snippet.trim()}\n\n`;
+                                } else {
+                                    // Fallback: show beginning of first chunk
+                                    let snippet = (docResults[0].content || docResults[0].snippet || '').substring(0, 300);
+                                    queryWords.forEach(word => {
+                                        const regex = new RegExp(`\\b(${word}\\w*)\\b`, 'gi');
+                                        snippet = snippet.replace(regex, '**$1**');
+                                    });
+                                    formattedResponse += `> ${snippet.trim()}...\n\n`;
                                 }
                             });
+                            
+                            // Also display formatted response in UI
+                            setTimeout(() => {
+                                addMessage('assistant', formattedResponse);
+                            }, 100);
+                            
                             return formattedResponse;
                         } else {
                             return "No relevant information found in the uploaded documents.";
@@ -1709,24 +1820,113 @@
                         const results = await response.json();
                         
                         if (results.results && results.results.length > 0) {
-                            let formattedResponse = `Found ${results.results.length} relevant sections:\n\n`;
-                            results.results.forEach((result, idx) => {
-                                const score = result.relevanceScore || result.score || 0;
-                                formattedResponse += `**Result ${idx + 1}**`;
-                                if (score > 0) {
-                                    formattedResponse += ` (Score: ${score.toFixed(2)})`;
+                            // Group results by document for better presentation
+                            const documentGroups = {};
+                            results.results.forEach(result => {
+                                const fileName = result.fileName || result.documentName || 'Unknown';
+                                if (!documentGroups[fileName]) {
+                                    documentGroups[fileName] = [];
                                 }
-                                formattedResponse += `:\n`;
-                                formattedResponse += `📄 From: ${result.fileName || result.documentName || 'Unknown'}\n`;
+                                documentGroups[fileName].push(result);
+                            });
+                            
+                            let formattedResponse = `**Sources:** ${Object.keys(documentGroups).length} document${Object.keys(documentGroups).length > 1 ? 's' : ''}\n\n`;
+                            
+                            // Format results following Pinecone RAG best practices
+                            Object.entries(documentGroups).forEach(([fileName, docResults]) => {
+                                const maxScore = Math.max(...docResults.map(r => r.relevanceScore || r.score || 0));
+                                formattedResponse += `📄 **${fileName}** (${(maxScore * 100).toFixed(0)}%)\n`;
                                 
-                                // Return full content for the assistant to read
-                                if (result.content && result.content.length > 0) {
-                                    formattedResponse += `\n${result.content}\n\n`;
-                                } else if (result.snippet) {
-                                    // Fallback to snippet if no full content
-                                    formattedResponse += `> ${result.snippet}\n\n`;
+                                // Process ALL chunks to find the best matching content
+                                const queryWords = args.query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                                let bestSnippets = [];
+                                
+                                // Search through all result chunks for relevant content
+                                docResults.forEach(result => {
+                                    const content = result.content || result.snippet || '';
+                                    const contentLower = content.toLowerCase();
+                                    
+                                    // Search entire content with sliding window
+                                    for (let i = 0; i < contentLower.length; i += 50) {
+                                        const windowStart = Math.max(0, i - 100);
+                                        const windowEnd = Math.min(contentLower.length, i + 350);
+                                        const window = contentLower.substring(windowStart, windowEnd);
+                                        
+                                        // Score this window
+                                        let score = 0;
+                                        let matchPositions = [];
+                                        queryWords.forEach(word => {
+                                            const regex = new RegExp(`\\b${word}`, 'gi');
+                                            const matches = window.match(regex) || [];
+                                            score += matches.length * 3;
+                                            if (matches.length > 0) {
+                                                matchPositions.push(window.indexOf(matches[0]));
+                                            }
+                                        });
+                                        
+                                        // Boost score if query words are close together
+                                        if (matchPositions.length > 1) {
+                                            const spread = Math.max(...matchPositions) - Math.min(...matchPositions);
+                                            if (spread < 100) score += 5;
+                                        }
+                                        
+                                        if (score > 2) {
+                                            bestSnippets.push({
+                                                text: content.substring(windowStart, windowEnd),
+                                                score: score,
+                                                start: windowStart
+                                            });
+                                        }
+                                    }
+                                });
+                                
+                                // Sort and get best snippets
+                                bestSnippets.sort((a, b) => b.score - a.score);
+                                const topSnippet = bestSnippets[0];
+                                
+                                if (topSnippet) {
+                                    let snippet = topSnippet.text;
+                                    
+                                    // Clean up edges at sentence boundaries
+                                    const firstSentence = snippet.indexOf('. ');
+                                    const lastSentence = snippet.lastIndexOf('. ');
+                                    if (topSnippet.start > 0 && firstSentence > 0 && firstSentence < 80) {
+                                        snippet = '...' + snippet.substring(firstSentence + 2);
+                                    } else if (topSnippet.start > 0) {
+                                        snippet = '...' + snippet;
+                                    }
+                                    
+                                    if (snippet.length > 400) {
+                                        if (lastSentence > 300) {
+                                            snippet = snippet.substring(0, lastSentence + 1);
+                                        } else {
+                                            snippet = snippet.substring(0, 400) + '...';
+                                        }
+                                    }
+                                    
+                                    // Highlight matching terms
+                                    queryWords.forEach(word => {
+                                        const regex = new RegExp(`\\b(${word}\\w*)\\b`, 'gi');
+                                        snippet = snippet.replace(regex, '**$1**');
+                                    });
+                                    
+                                    formattedResponse += `> ${snippet.trim()}\n\n`;
+                                } else {
+                                    // Fallback: show beginning of first chunk
+                                    let snippet = (docResults[0].content || docResults[0].snippet || '').substring(0, 300);
+                                    queryWords.forEach(word => {
+                                        const regex = new RegExp(`\\b(${word}\\w*)\\b`, 'gi');
+                                        snippet = snippet.replace(regex, '**$1**');
+                                    });
+                                    formattedResponse += `> ${snippet.trim()}...\n\n`;
                                 }
                             });
+                            
+                            // Also display formatted response in UI
+                            setTimeout(() => {
+                                addMessage('assistant', formattedResponse);
+                            }, 100);
+                            
                             return formattedResponse;
                         } else {
                             return "No relevant information found in the uploaded documents.";
@@ -2378,36 +2578,158 @@
                 }, 200);
             });
 
-            // Mute button
+            // Mute button - properly mute/unmute audio output
             elements.muteButton.addEventListener('click', () => {
                 isMuted = !isMuted;
-                if (session) {
-                    if (isMuted) {
-                        // Mute audio output
-                        elements.muteButton.textContent = '🔊 Unmute';
-                        elements.muteButton.classList.add('active');
-                        showStatusMessage('🔇 Audio output muted');
-                    } else {
-                        // Unmute audio output
-                        elements.muteButton.textContent = '🔇 Mute';
-                        elements.muteButton.classList.remove('active');
-                        showStatusMessage('🔊 Audio output unmuted');
-                    }
+                
+                // Try multiple methods to ensure muting works
+                let muted = false;
+                
+                // Method 1: Check for audio element on transport
+                if (transport && transport.audioElement) {
+                    transport.audioElement.muted = isMuted;
+                    muted = true;
+                }
+                
+                // Method 2: Check for audio element via query
+                const audioElements = document.querySelectorAll('audio');
+                audioElements.forEach(audio => {
+                    audio.muted = isMuted;
+                    muted = true;
+                });
+                
+                // Method 3: Mute via peer connection tracks
+                if (transport && transport.pc) {
+                    const receivers = transport.pc.getReceivers();
+                    receivers.forEach(receiver => {
+                        if (receiver.track && receiver.track.kind === 'audio') {
+                            receiver.track.enabled = !isMuted;
+                            muted = true;
+                        }
+                    });
+                    
+                    // Also check for remote streams
+                    const remoteStreams = transport.pc.getRemoteStreams ? transport.pc.getRemoteStreams() : [];
+                    remoteStreams.forEach(stream => {
+                        stream.getAudioTracks().forEach(track => {
+                            track.enabled = !isMuted;
+                            muted = true;
+                        });
+                    });
+                }
+                
+                // Method 4: Check session for audio control
+                if (session && session.mute) {
+                    session.mute(isMuted);
+                    muted = true;
+                }
+                
+                // Update UI regardless of method used
+                if (isMuted) {
+                    elements.muteButton.textContent = '🔊 Unmute';
+                    elements.muteButton.classList.add('active');
+                    showStatusMessage('🔇 Audio output muted');
+                } else {
+                    elements.muteButton.textContent = '🔇 Mute';
+                    elements.muteButton.classList.remove('active');
+                    showStatusMessage('🔊 Audio output unmuted');
+                }
+                
+                if (!muted && isConnected) {
+                    console.warn('Could not find audio to mute - audio may still play');
                 }
             });
 
-            // Interrupt button
+            // Interrupt button - properly stop current response
             elements.interruptButton.addEventListener('click', () => {
-                if (transport && transport.interrupt) {
+                if (transport) {
                     try {
-                        // console.log('Interrupting response');
-                        transport.interrupt(); // Use SDK's interrupt method
+                        // Try multiple methods to ensure interruption works
+                        if (transport.interrupt) {
+                            transport.interrupt();
+                        }
+                        
+                        // Send proper cancel event if the transport is in the right state
+                        if (transport.sendEvent && transport.state === 'connected') {
+                            try {
+                                transport.sendEvent({ 
+                                    type: 'conversation.item.truncate',
+                                    item_id: 'current'
+                                });
+                            } catch (e) {
+                                // Silently ignore if this event type is not supported
+                            }
+                        }
+                        
+                        // Clear UI state
                         elements.visualizer.classList.remove('active', 'speaking', 'listening', 'thinking');
-                        // Bubble removed
                         currentAssistantMessage = '';
-                        showStatusMessage('⏹️ Response interrupted');
+                        currentAssistantMessageDiv = null;
+                        showStatusMessage('⏹️ Response stopped');
                     } catch (error) {
                         console.error('Interrupt error:', error);
+                        showStatusMessage('❌ Failed to stop response');
+                    }
+                } else {
+                    showStatusMessage('⚠️ Not connected');
+                }
+            });
+            
+            // Disconnect/Reconnect button
+            elements.disconnectButton.addEventListener('click', async () => {
+                if (isConnected) {
+                    // Disconnect
+                    try {
+                        if (transport) {
+                            // Close WebRTC connection
+                            if (transport.pc) {
+                                transport.pc.close();
+                            }
+                            if (transport.close) {
+                                transport.close();
+                            }
+                        }
+                        
+                        if (session && session.disconnect) {
+                            await session.disconnect();
+                        }
+                        
+                        // Reset state
+                        transport = null;
+                        session = null;
+                        agent = null;
+                        isConnected = false;
+                        
+                        // Update UI
+                        updateStatus('Disconnected', false);
+                        elements.disconnectButton.textContent = '🔗 Reconnect';
+                        elements.disconnectButton.classList.add('active');
+                        elements.micButton.disabled = true;
+                        elements.textInput.disabled = true;
+                        elements.sendButton.disabled = true;
+                        elements.visualizer.classList.remove('active', 'speaking', 'listening', 'thinking');
+                        showStatusMessage('🔌 Session disconnected');
+                    } catch (error) {
+                        console.error('Disconnect error:', error);
+                        showStatusMessage('❌ Failed to disconnect');
+                    }
+                } else {
+                    // Reconnect
+                    try {
+                        elements.disconnectButton.textContent = '⏳ Connecting...';
+                        elements.disconnectButton.disabled = true;
+                        
+                        await initialize();
+                        
+                        elements.disconnectButton.textContent = '🔌 Disconnect';
+                        elements.disconnectButton.classList.remove('active');
+                        elements.disconnectButton.disabled = false;
+                        showStatusMessage('✅ Session reconnected');
+                    } catch (error) {
+                        console.error('Reconnect error:', error);
+                        elements.disconnectButton.textContent = '🔗 Reconnect';
+                        elements.disconnectButton.disabled = false;
+                        showStatusMessage('❌ Failed to reconnect');
                     }
                 }
             });

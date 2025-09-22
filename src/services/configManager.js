@@ -418,6 +418,33 @@ class ConfigManager {
                         error: weatherResult.message
                     };
                     
+                case 'pinecone':
+                    // Test Pinecone API
+                    if (!config.apiKey) {
+                        return { valid: false, error: 'API key is required' };
+                    }
+                    
+                    // Use the Pinecone describe_index_stats endpoint to validate
+                    const pineconeTest = await fetch(
+                        'https://api.pinecone.io/indexes',
+                        {
+                            headers: {
+                                'Api-Key': config.apiKey,
+                                'Content-Type': 'application/json'
+                            }
+                        }
+                    );
+                    
+                    if (pineconeTest.ok) {
+                        return { valid: true };
+                    } else {
+                        const error = await pineconeTest.text();
+                        return { 
+                            valid: false, 
+                            error: pineconeTest.status === 401 ? 'Invalid API key' : error 
+                        };
+                    }
+                    
                 default:
                     return { valid: false, error: 'Unknown API' };
             }
