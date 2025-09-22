@@ -1736,7 +1736,8 @@
                         addMessage('tool', `🔍 Searching Google for: "${args.query}"`);
                         
                         // Try to use real Google API if configured
-                        const apiKeys = await loadApiKeys();
+                        const apiKeysResponse = await fetch('/api/apikeys');
+                        const apiKeys = await apiKeysResponse.json();
                         if (apiKeys?.google?.apiKey && apiKeys?.google?.searchEngineId) {
                             try {
                                 // Make actual API call

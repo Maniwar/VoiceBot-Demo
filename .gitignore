@@ -172,6 +172,7 @@ private/
 notes.txt# Sensitive and temporary files
 config/.api-keys.json
 config/settings.json
+config/.encryption-key
 documents/
 uploads/
 .env
