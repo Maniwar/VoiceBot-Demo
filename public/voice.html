@@ -917,7 +917,7 @@
             </div>
         </div>
         <div class="upload-section">
-            <input type="file" id="fileInput" class="file-input" accept=".pdf,.txt,.md,.csv,.json" multiple>
+            <input type="file" id="fileInput" class="file-input" accept=".pdf,.txt,.md,.csv,.json,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.bmp,.svg,.html,.xml,.rtf" multiple>
             <button class="upload-button" onclick="document.getElementById('fileInput').click()">
                 📤 Upload Documents
             </button>
@@ -1211,25 +1211,49 @@
             }
 
             // Create an image analysis tool that will be called when video frames are sent
-            // Flight search tool
-            const flightSearchTool = wrapTool({
-                name: 'search_flights',
-                description: 'Search for flight information, prices, and availability. Use this when users ask about travel, flights, or airline tickets.',
+            // Unified flight and travel search tool
+            const unifiedFlightTool = wrapTool({
+                name: 'unified_flight_search',
+                description: 'Comprehensive flight and travel search with advanced features including flights, hotels, cars, and activities',
                 parameters: {
                     type: 'object',
                     properties: {
-                        origin: { type: 'string', description: 'Origin city or airport code' },
-                        destination: { type: 'string', description: 'Destination city or airport code' },
-                        departDate: { type: 'string', description: 'Departure date (YYYY-MM-DD)' },
+                        action: {
+                            type: 'string',
+                            enum: ['search', 'price_prediction', 'inspiration', 'cheapest_dates', 'status', 'airport_search', 'hotel_search'],
+                            description: 'Type of search or operation to perform'
+                        },
+                        origin: { type: 'string', description: 'Origin airport or city code (e.g., "JFK", "NYC")' },
+                        destination: { type: 'string', description: 'Destination airport or city code' },
+                        departureDate: { type: 'string', description: 'Departure date (YYYY-MM-DD)' },
                         returnDate: { type: 'string', description: 'Return date for round trips (YYYY-MM-DD)', nullable: true },
-                        passengers: { type: 'number', default: 1 }
+                        adults: { type: 'number', default: 1, description: 'Number of adult passengers' },
+                        keyword: { type: 'string', description: 'Search keyword for airports/cities/locations' }
                     },
-                    required: ['origin', 'destination', 'departDate']
+                    required: ['action']
                 },
                 execute: async (args) => {
-                    addMessage('tool', `✈️ Searching flights from ${args.origin} to ${args.destination}`);
-                    // Mock response for demo
-                    return `## Flight Results\n\n✈️ **${args.origin} → ${args.destination}**\n\nDeparture: ${args.departDate}\n\nBest options:\n- United Airlines: $450\n- Delta: $480\n- American: $520`;
+                    const actionDescriptions = {
+                        search: 'Searching flights',
+                        price_prediction: 'Analyzing flight prices',
+                        inspiration: 'Finding travel inspiration',
+                        cheapest_dates: 'Finding cheapest travel dates',
+                        status: 'Checking flight status',
+                        airport_search: 'Searching airports',
+                        hotel_search: 'Searching hotels'
+                    };
+
+                    const description = actionDescriptions[args.action] || 'Processing travel request';
+                    addMessage('tool', `✈️ ${description}...`);
+
+                    // Mock response for demo - would call actual unified flight tool
+                    if (args.action === 'search' && args.origin && args.destination) {
+                        return `## Flight Search Results\n\n✈️ **${args.origin} → ${args.destination}**\n\nDeparture: ${args.departureDate}\n\n**Best Options:**\n- United Airlines: $450 (2h 30m, non-stop)\n- Delta: $480 (2h 45m, non-stop)\n- American: $520 (3h 15m, 1 stop)\n\n*Prices include taxes and fees*`;
+                    } else if (args.action === 'airport_search' && args.keyword) {
+                        return `## Airport Search Results\n\n📍 **Searching for: "${args.keyword}"**\n\n- **John F. Kennedy International** (JFK) - New York, NY\n- **Los Angeles International** (LAX) - Los Angeles, CA\n- **Chicago O'Hare International** (ORD) - Chicago, IL`;
+                    }
+
+                    return `## Travel Search\n\n✈️ **Action:** ${args.action}\n\nProcessing your ${args.action} request. In a real implementation, this would connect to the Amadeus API for live data.`;
                 }
             });
 
@@ -2163,7 +2187,7 @@
                         enabledTools.push(weatherTool);
                     }
                     if (settings.tools?.flightSearchEnabled) {
-                        enabledTools.push(flightSearchTool);
+                        enabledTools.push(unifiedFlightTool);
                     }
                     if (settings.tools?.cameraEnabled) {
                         enabledTools.push(imageAnalysisTool);

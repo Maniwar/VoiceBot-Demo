@@ -11,8 +11,10 @@ import pineconeDocumentManager from './src/services/pineconeDocumentManager.js';
 const documentManager = pineconeDocumentManager;
 import { GoogleSearchTool } from './src/tools/googleSearchTool.js';
 import { FreeWeatherTool } from './src/tools/freeWeatherTool.js';
-import { FlightSearchTool } from './src/tools/flightSearchTool.js';
+import unifiedFlightTool from './src/tools/unifiedFlightTool.js';
 import agenticRagTool from './src/tools/agenticRagTool.js';
+import toolRegistry from './src/tools/toolRegistry.js';
+import mainAgent from './src/agents/mainAgent.js';
 import OpenAI from 'openai';
 
 // Load environment variables
@@ -279,6 +281,36 @@ app.get('/api/settings', (req, res) => {
   res.json(settings);
 });
 
+// Get default settings from mainAgent.js
+app.get('/api/settings/defaults', (req, res) => {
+  try {
+    // Extract configuration from mainAgent
+    const defaults = {
+      name: mainAgent.name || 'VoiceAssistant',
+      instructions: mainAgent.instructions || '',
+      voice: mainAgent.voice || 'alloy',
+      model: 'gpt-4o-realtime-preview',
+      temperature: 0.8,
+      maxResponseOutputTokens: 4096,
+      tools: mainAgent.tools?.map(tool => ({
+        name: tool.name || tool.definition?.name,
+        enabled: true
+      })) || [],
+      handoffs: mainAgent.handoffs || [],
+      inputGuardrails: mainAgent.inputGuardrails || [],
+      outputGuardrails: mainAgent.outputGuardrails || []
+    };
+    
+    res.json(defaults);
+  } catch (error) {
+    logger.error('Error getting default settings:', error);
+    res.status(500).json({ 
+      error: 'Failed to get default settings',
+      message: error.message 
+    });
+  }
+});
+
 app.post('/api/settings', async (req, res) => {
   try {
     const settings = await configManager.saveSettings(req.body);
@@ -290,6 +322,62 @@ app.post('/api/settings', async (req, res) => {
       message: error.message 
     });
   }
+});
+
+// RAG Settings endpoint
+app.post('/api/settings/rag', async (req, res) => {
+  try {
+    const { ragSettings, toolInstructions } = req.body;
+    
+    // Update document manager settings
+    if (ragSettings) {
+      // Store RAG settings in configManager
+      await configManager.updateSetting('ragConfig', ragSettings);
+      
+      // Apply settings to document manager
+      if (documentManager.setConfig) {
+        documentManager.setConfig(ragSettings);
+      }
+    }
+    
+    // Update tool instructions if provided
+    if (toolInstructions) {
+      await configManager.updateSetting('toolInstructions', toolInstructions);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'RAG settings updated successfully',
+      settings: {
+        ragConfig: ragSettings,
+        toolInstructions: toolInstructions
+      }
+    });
+  } catch (error) {
+    logger.error('Save RAG settings error:', error);
+    res.status(500).json({ 
+      error: 'Failed to save RAG settings',
+      message: error.message 
+    });
+  }
+});
+
+// Get RAG settings endpoint
+app.get('/api/settings/rag', (req, res) => {
+  const settings = configManager.getSettings();
+  res.json({
+    ragConfig: settings.ragConfig || {
+      chunkSize: 4000,
+      chunkOverlap: 500,
+      maxChunksPerDoc: 100,
+      relevanceThreshold: 0.05,
+      hybridSearchWeight: 0.7,
+      maxSearchResults: 50,
+      embeddingModel: 'text-embedding-ada-002',
+      useSemanticChunking: false
+    },
+    toolInstructions: settings.toolInstructions || {}
+  });
 });
 
 // API keys endpoints
@@ -361,23 +449,210 @@ app.post('/api/apikeys/validate/:apiName', async (req, res) => {
   }
 });
 
-// Tool configuration endpoint
-app.get('/api/tools', (req, res) => {
-  // Return available tools configuration
-  res.json({
-    tools: [
-      {
-        name: 'search_documents',
-        description: 'Search uploaded documents using RAG',
-        enabled: true
-      },
-      {
-        name: 'process_document',
-        description: 'Process and index uploaded documents',
-        enabled: true
+// Get all available tools with their definitions and status
+app.get('/api/tools', async (req, res) => {
+  try {
+    const tools = toolRegistry.getAllTools();
+    const settings = configManager.getSettings();
+    
+    // Add custom tools from settings
+    if (settings.customTools) {
+      for (const tool of Object.values(settings.customTools)) {
+        tools.push(tool);
       }
-    ]
-  });
+    }
+    
+    // Merge with user settings for enabled/disabled status
+    const toolsWithStatus = tools.map(tool => ({
+      ...tool,
+      enabled: settings.tools?.[tool.name] !== false && tool.enabled,
+      userConfigured: settings.tools?.[tool.name] !== undefined,
+      custom: !!settings.customTools?.[tool.name]
+    }));
+    
+    res.json({
+      success: true,
+      tools: toolsWithStatus,
+      categories: ['rag', 'search', 'weather', 'travel', 'vision', 'custom']
+    });
+  } catch (error) {
+    logger.error('Get tools error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get tools',
+      message: error.message 
+    });
+  }
+});
+
+// Get comprehensive tool configuration with merged instructions
+app.get('/api/tools/comprehensive', (req, res) => {
+  try {
+    const config = toolRegistry.getComprehensiveToolConfig();
+    const withInstructions = toolRegistry.getToolsWithInstructions();
+    
+    res.json({
+      success: true,
+      config: {
+        ...config,
+        toolsWithInstructions: withInstructions
+      }
+    });
+  } catch (error) {
+    logger.error('Get comprehensive tools error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get comprehensive tool configuration',
+      message: error.message 
+    });
+  }
+});
+
+// Get tool by name
+app.get('/api/tools/:name', (req, res) => {
+  try {
+    const settings = configManager.getSettings();
+    const tool = toolRegistry.getToolByName(req.params.name) || 
+                 settings.customTools?.[req.params.name];
+    
+    if (!tool) {
+      return res.status(404).json({ error: 'Tool not found' });
+    }
+    res.json({ success: true, tool });
+  } catch (error) {
+    logger.error('Get tool error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get tool',
+      message: error.message 
+    });
+  }
+});
+
+// Create or update a custom tool
+app.post('/api/tools', async (req, res) => {
+  try {
+    const { name, description, parameters, endpoint, category, enabled } = req.body;
+    
+    if (!name || !description || !parameters) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: name, description, parameters' 
+      });
+    }
+    
+    // Save to custom tools in settings
+    const settings = configManager.getSettings();
+    if (!settings.customTools) {
+      settings.customTools = {};
+    }
+    
+    settings.customTools[name] = {
+      name,
+      description,
+      parameters,
+      endpoint,
+      category: category || 'custom',
+      enabled: enabled !== false,
+      createdAt: settings.customTools[name]?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await configManager.saveSettings(settings);
+    
+    res.json({ 
+      success: true, 
+      message: 'Tool saved successfully',
+      tool: settings.customTools[name]
+    });
+  } catch (error) {
+    logger.error('Save tool error:', error);
+    res.status(500).json({ 
+      error: 'Failed to save tool',
+      message: error.message 
+    });
+  }
+});
+
+// Update tool (enable/disable or edit)
+app.patch('/api/tools/:name', async (req, res) => {
+  try {
+    const settings = configManager.getSettings();
+    const { enabled, description, parameters, endpoint, category } = req.body;
+    
+    // Check if it's a custom tool that needs full update
+    if (settings.customTools?.[req.params.name]) {
+      if (description || parameters || endpoint || category) {
+        // Full update for custom tool
+        const tool = settings.customTools[req.params.name];
+        if (description) tool.description = description;
+        if (parameters) tool.parameters = parameters;
+        if (endpoint) tool.endpoint = endpoint;
+        if (category) tool.category = category;
+        if (enabled !== undefined) tool.enabled = enabled;
+        tool.updatedAt = new Date().toISOString();
+      }
+    } else {
+      // Just update enabled status for built-in tools
+      if (!settings.tools) {
+        settings.tools = {};
+      }
+      settings.tools[req.params.name] = enabled;
+    }
+    
+    await configManager.saveSettings(settings);
+    
+    res.json({ 
+      success: true, 
+      message: `Tool ${req.params.name} updated`,
+      tool: req.params.name,
+      enabled 
+    });
+  } catch (error) {
+    logger.error('Update tool error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update tool',
+      message: error.message 
+    });
+  }
+});
+
+// Delete a custom tool
+app.delete('/api/tools/:name', async (req, res) => {
+  try {
+    const settings = configManager.getSettings();
+    
+    if (!settings.customTools || !settings.customTools[req.params.name]) {
+      return res.status(404).json({ error: 'Custom tool not found' });
+    }
+    
+    delete settings.customTools[req.params.name];
+    await configManager.saveSettings(settings);
+    
+    res.json({ 
+      success: true, 
+      message: 'Tool deleted successfully' 
+    });
+  } catch (error) {
+    logger.error('Delete tool error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete tool',
+      message: error.message 
+    });
+  }
+});
+
+// Execute a tool (for testing from admin panel)
+app.post('/api/tools/:name/execute', async (req, res) => {
+  try {
+    const result = await toolRegistry.executeTool(req.params.name, req.body);
+    res.json({ 
+      success: true,
+      result 
+    });
+  } catch (error) {
+    logger.error('Execute tool error:', error);
+    res.status(500).json({ 
+      error: 'Failed to execute tool',
+      message: error.message 
+    });
+  }
 });
 
 // Image analysis endpoint
@@ -432,14 +707,44 @@ app.post('/api/analyze-image', async (req, res) => {
     }
 });
 
-// Tool management endpoint
-app.post('/api/tools/:toolName/toggle', (req, res) => {
+// Save tool configuration
+app.post('/api/tools/save', async (req, res) => {
+  try {
+    const tool = req.body;
+    
+    // Save to settings
+    const settings = configManager.getSettings();
+    if (!settings.customTools) {
+      settings.customTools = {};
+    }
+    settings.customTools[tool.name] = tool;
+    await configManager.saveSettings(settings);
+    
+    res.json({ success: true, tool });
+  } catch (error) {
+    logger.error('Save tool error:', error);
+    res.status(500).json({ 
+      error: 'Failed to save tool',
+      message: error.message 
+    });
+  }
+});
+
+// Legacy toggle endpoint (kept for backward compatibility)
+app.post('/api/tools/:toolName/toggle', async (req, res) => {
   const { toolName } = req.params;
   const { enabled } = req.body;
   
   logger.info(`Tool ${toolName} ${enabled ? 'enabled' : 'disabled'}`);
   
-  // TODO: Implement tool state management
+  // Use the new PATCH endpoint internally
+  const settings = configManager.getSettings();
+  if (!settings.tools) {
+    settings.tools = {};
+  }
+  settings.tools[toolName] = enabled;
+  await configManager.saveSettings(settings);
+  
   res.json({ 
     tool: toolName,
     enabled: enabled 
