@@ -1662,18 +1662,29 @@
                     const line = lines[i].trim();
 
                     // Look for header row pattern (Row 5 usually contains headers)
-                    if (line.match(/^Row \d+.*contains:.*,.*,.*,/)) {
+                    if (line.match(/^Row \d+.*contains:.*,/)) {
                         const content = line.split('contains:')[1]?.trim();
-                        if (content && content.split(',').length >= 5) {
-                            if (!headerFound && (content.includes('Use Case') || content.includes('Category') || content.includes('Channel'))) {
+                        if (content && content.split(',').length >= 3) {
+                            // Check if this looks like a header row
+                            if (!headerFound && (content.includes('Use Case') || content.includes('Category') || content.includes('Channel') || content.includes('Volume') || content.includes('Savings'))) {
                                 // This looks like a header row
                                 headerRow = content.split(',').map(f => f.trim());
                                 headerFound = true;
-                            } else if (headerFound) {
-                                // This is a data row
+                            } else if (headerFound && content.trim() && !content.match(/^\s*,?\s*$/)) {
+                                // This is a data row (non-empty)
                                 const rowData = content.split(',').map(f => f.trim());
-                                tableRows.push(rowData);
+                                // Only add rows that have actual data
+                                if (rowData.some(field => field && field !== '')) {
+                                    tableRows.push(rowData);
+                                }
                             } else {
+                                if (headerFound && tableRows.length > 0) {
+                                    // End of table, render it
+                                    newHtml += renderVectorDBTable(headerRow, tableRows);
+                                    headerFound = false;
+                                    tableRows = [];
+                                    headerRow = null;
+                                }
                                 newHtml += line + '\n';
                             }
                         } else {
@@ -1707,23 +1718,92 @@
                 return newHtml;
             }
 
-            // Render vector DB table as HTML
-            function renderVectorDBTable(headers, rows) {
+            // Convert key-value format to HTML table (for CSV reviews like "id: 1, field: value")
+            function convertKeyValueToTable(content) {
+                const lines = content.split('\n');
+                const dataRows = [];
+                const allKeys = new Set();
+
+                // Parse each line to extract key-value pairs
+                lines.forEach(line => {
+                    if (line.trim() && line.includes(':')) {
+                        const row = {};
+                        // Split by comma but be careful with commas inside values
+                        const parts = line.split(', ');
+
+                        parts.forEach(part => {
+                            const colonIndex = part.indexOf(':');
+                            if (colonIndex > 0) {
+                                const key = part.substring(0, colonIndex).trim();
+                                const value = part.substring(colonIndex + 1).trim();
+                                row[key] = value;
+                                allKeys.add(key);
+                            }
+                        });
+
+                        if (Object.keys(row).length > 0) {
+                            dataRows.push(row);
+                        }
+                    }
+                });
+
+                if (dataRows.length === 0) return content; // Return original if no data found
+
+                // Create table HTML
+                const headers = Array.from(allKeys);
                 let html = '<div class="csv-table-container"><table class="csv-table">';
 
-                // Header
+                // Header row
                 html += '<thead><tr>';
                 headers.forEach(header => {
-                    html += `<th>${header || ''}</th>`;
+                    html += `<th>${header}</th>`;
                 });
                 html += '</tr></thead><tbody>';
 
-                // Data rows
+                // Data rows - show ALL rows
+                dataRows.forEach(row => {
+                    html += '<tr>';
+                    headers.forEach(header => {
+                        const value = row[header] || '';
+                        // Truncate very long text but allow more content
+                        const displayValue = value.length > 200 ? value.substring(0, 200) + '...' : value;
+                        html += `<td title="${value}">${displayValue}</td>`;
+                    });
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+
+                if (dataRows.length > 0) {
+                    html += `<p style="color: #888; font-size: 12px; margin-top: 5px;">Showing all ${dataRows.length} records</p>`;
+                }
+
+                return html;
+            }
+
+            // Render vector DB table as HTML (flexible for different structures)
+            function renderVectorDBTable(headers, rows) {
+                let html = '<div class="csv-table-container"><table class="csv-table">';
+
+                // Determine the maximum number of columns needed
+                const maxColumns = Math.max(
+                    headers.length,
+                    ...rows.map(row => row.length)
+                );
+
+                // Header
+                html += '<thead><tr>';
+                for (let i = 0; i < maxColumns; i++) {
+                    html += `<th>${headers[i] || `Column ${i + 1}`}</th>`;
+                }
+                html += '</tr></thead><tbody>';
+
+                // Data rows - handle rows with different numbers of fields
                 rows.forEach(row => {
                     html += '<tr>';
-                    headers.forEach((_, index) => {
-                        html += `<td>${row[index] || ''}</td>`;
-                    });
+                    for (let i = 0; i < maxColumns; i++) {
+                        html += `<td>${row[i] || ''}</td>`;
+                    }
                     html += '</tr>';
                 });
 
@@ -1768,6 +1848,11 @@
                 // Handle vector DB "Row X contains:" format BEFORE markdown processing
                 if (content.includes('Row 5 contains:') || (content.includes('Row ') && content.includes('contains:'))) {
                     content = convertVectorDBResultsToTable(content);
+                }
+
+                // Handle "id: X, field: value" format (like CSV reviews)
+                if (content.includes('id: ') && content.includes(', ') && content.includes(':')) {
+                    content = convertKeyValueToTable(content);
                 }
 
                 // Configure marked for better rendering
