@@ -1,8 +1,10 @@
-import { ragToolDefinitions, ragToolHandlers } from './simpleRagTool.js';
-import agenticRagTool from './agenticRagTool.js';
+import { unifiedRagToolDefinitions, unifiedRagToolHandlers } from './unifiedRagTool.js';
 import { GoogleSearchTool } from './googleSearchTool.js';
 import { FreeWeatherTool } from './freeWeatherTool.js';
 import unifiedFlightTool from './unifiedFlightTool.js';
+import { formatTableToolDefinition, formatTableHandler } from './formatTableTool.js';
+import { tableRecreationWorkflowDefinition, executeTableRecreationWorkflow } from '../workflows/tableRecreationWorkflow.js';
+import workflowRegistry from '../services/workflowRegistry.js';
 
 // Unified tool registry for the voice assistant
 // These tools are exposed to the Realtime API via the client
@@ -10,46 +12,46 @@ import unifiedFlightTool from './unifiedFlightTool.js';
 const toolRegistry = {
     // RAG Tools - Document Search and Retrieval
     rag: {
-        // Simple RAG - Direct vector search
+        // Unified RAG - Supports both simple and agentic modes
         search_documents: {
-            definition: ragToolDefinitions[0], // ragSearchToolDefinition
-            handler: ragToolHandlers.search_documents,
+            definition: unifiedRagToolDefinitions[0], // unifiedRagToolDefinition
+            handler: unifiedRagToolHandlers.search_documents,
             endpoint: '/api/documents/search',
             category: 'rag',
             enabled: true,
-            description: 'Direct vector search in uploaded documents',
-            instructions: `KNOWLEDGE-FIRST APPROACH: For EVERY user question (except greetings), ALWAYS search the knowledge base FIRST before responding.
-                The knowledge base is the primary source of truth. Even for general questions, check if relevant information exists in the documents.
-                
+            description: 'Advanced document search with configurable modes (simple/agentic)',
+            instructions: `WORKFLOW-FIRST APPROACH: Check if there's a dedicated workflow for the user's request before using individual tools.
+
+                WORKFLOW PRIORITY:
+                - For table requests ("recreate table", "show table", "format table"), use the available table workflow FIRST
+                - Workflows automatically chain multiple tools and provide better results
+                - Only use search_documents directly if no appropriate workflow exists
+
+                KNOWLEDGE-FIRST FALLBACK: If no workflow matches, search the knowledge base for relevant information.
+
+                UNIFIED RAG MODES:
+                - Use mode="simple" (default) for direct vector search - fast and precise
+                - Use mode="agentic" for complex queries requiring multi-iteration reasoning
+
                 WORKFLOW:
-                1. ALWAYS use search_documents tool immediately when user asks any question
-                2. Extract keywords and synonyms from their question automatically
-                3. Search the knowledge base comprehensively
-                4. If relevant information is found, base your answer on it
-                5. If no relevant information is found, then provide a general answer noting that nothing specific was found in the knowledge base
-                
+                1. Check for workflows that match the user's request (table workflows, research workflows, etc.)
+                2. If workflow exists, use it instead of individual tools
+                3. If no workflow, then use search_documents tool
+                4. Extract keywords and synonyms from their question automatically
+                5. Choose appropriate mode: simple for straightforward questions, agentic for complex analysis
+                6. Search the knowledge base comprehensively
+                7. If relevant information is found, base your answer on it
+                8. If no relevant information is found, then provide a general answer
+
                 CRITICAL: When asked about comparisons ("best", "highest", "most", "least"), COMPARE all relevant values/options in the data.
                 Provide SPECIFIC answers with actual numbers, percentages, or concrete details from the documents.
                 Always cite which document the information came from.`
         },
-        
-        // Agentic RAG - Advanced reasoning search
-        agentic_search: {
-            definition: agenticRagTool.definition,
-            handler: agenticRagTool.handler,
-            endpoint: '/api/documents/agentic-search',
-            category: 'rag',
-            enabled: true,
-            description: 'Advanced search with reasoning and multiple retrieval attempts',
-            instructions: `Use this tool for complex queries that require reasoning across multiple concepts or documents.
-                This tool performs multiple search iterations and can rephrase queries to find better results.
-                Best used when the simple search doesn't return satisfactory results or when dealing with complex questions.`
-        },
-        
+
         // List documents
         list_documents: {
-            definition: ragToolDefinitions[1], // listDocumentsToolDefinition
-            handler: ragToolHandlers.list_documents,
+            definition: unifiedRagToolDefinitions[1], // listDocumentsToolDefinition
+            handler: unifiedRagToolHandlers.list_documents,
             endpoint: '/api/documents',
             category: 'rag',
             enabled: true,
@@ -57,11 +59,11 @@ const toolRegistry = {
             instructions: `Use this tool when users ask what documents are available, what's in the knowledge base, or want to see uploaded files.
                 Show the document names, types, sizes, and when they were uploaded.`
         },
-        
+
         // Get document content
         get_document: {
-            definition: ragToolDefinitions[2], // getDocumentToolDefinition  
-            handler: ragToolHandlers.get_document,
+            definition: unifiedRagToolDefinitions[2], // getDocumentToolDefinition
+            handler: unifiedRagToolHandlers.get_document,
             endpoint: '/api/documents/:id',
             category: 'rag',
             enabled: true,
@@ -216,13 +218,38 @@ const toolRegistry = {
             instructions: `When the user shares an image or asks you to look at something, analyze it carefully.
                 Describe what you see in detail and answer any questions about the image.
                 Be specific about colors, objects, text, people, and any other relevant details.`
-        }
+        },
+
+        // Table formatting agent
+        format_table: {
+            definition: formatTableToolDefinition,
+            handler: formatTableHandler,
+            endpoint: '/api/tools/format-table',
+            category: 'formatting',
+            enabled: true,
+            description: 'Format raw data into clean markdown tables for chat display',
+            instructions: `Use this tool when you need to present tabular data in a clean, readable format.
+                Call this tool AFTER getting raw data from search_documents or other sources.
+                Pass the raw data to get a clean markdown table that displays nicely in chat.
+
+                WORKFLOW:
+                1. Get data from search_documents or other sources
+                2. Call format_table with the raw data
+                3. Present the formatted result to the user
+
+                Example: "Let me format this data into a table for you" → call format_table → present clean result`
+        },
+
+        // NOTE: LangGraph workflows are now managed in the Workflows section of admin panel
+        // The recreate_table workflow has been moved to the workflows system for proper management
     }
 };
 
-// Get all tools as a flat list
-export function getAllTools() {
+// Get all tools as a flat list (including dynamic workflows)
+export async function getAllTools() {
     const tools = [];
+
+    // Add static tools from registry
     for (const category of Object.values(toolRegistry)) {
         for (const [name, tool] of Object.entries(category)) {
             tools.push({
@@ -231,12 +258,31 @@ export function getAllTools() {
             });
         }
     }
+
+    // Add dynamic workflow tools
+    try {
+        await workflowRegistry.initialize();
+        const workflowTools = workflowRegistry.getWorkflowTools();
+
+        for (const [toolName, workflowTool] of Object.entries(workflowTools)) {
+            tools.push({
+                name: toolName,
+                ...workflowTool
+            });
+        }
+
+        console.log('Added', Object.keys(workflowTools).length, 'workflow tools to voice agent');
+    } catch (error) {
+        console.error('Error loading workflow tools:', error);
+    }
+
     return tools;
 }
 
 // Get enabled tools only
-export function getEnabledTools() {
-    return getAllTools().filter(tool => tool.enabled);
+export async function getEnabledTools() {
+    const allTools = await getAllTools();
+    return allTools.filter(tool => tool.enabled);
 }
 
 // Get tools by category
@@ -255,15 +301,19 @@ export function getToolByName(name) {
 }
 
 // Get tool definitions for Realtime API
-export function getRealtimeToolDefinitions() {
-    return getEnabledTools()
+export async function getRealtimeToolDefinitions() {
+    const enabledTools = await getEnabledTools();
+    return enabledTools
         .filter(tool => tool.definition)
-        .map(tool => tool.definition);
+        .map(tool => ({
+            ...tool.definition,
+            type: 'function' // Required by OpenAI Realtime API
+        }));
 }
 
 // Get tools with merged instructions for voice assistant
-export function getToolsWithInstructions() {
-    const tools = getEnabledTools();
+export async function getToolsWithInstructions() {
+    const tools = await getEnabledTools();
     const result = {
         tools: {},
         instructions: {}
@@ -288,8 +338,8 @@ export function getToolsWithInstructions() {
 }
 
 // Get comprehensive tool configuration
-export function getComprehensiveToolConfig() {
-    const enabledTools = getEnabledTools();
+export async function getComprehensiveToolConfig() {
+    const enabledTools = await getEnabledTools();
     const config = {
         definitions: [],
         instructions: '',
@@ -317,21 +367,26 @@ export function getComprehensiveToolConfig() {
     return config;
 }
 
-// Execute a tool by name
-export async function executeTool(name, args) {
+// Execute a tool by name with configManager injection
+export async function executeTool(name, args, configManager = null) {
     const tool = getToolByName(name);
     if (!tool) {
         throw new Error(`Tool ${name} not found`);
     }
-    
+
     if (!tool.enabled) {
         throw new Error(`Tool ${name} is not enabled`);
     }
-    
+
     if (!tool.handler) {
         throw new Error(`Tool ${name} has no handler`);
     }
-    
+
+    // For tools that require API keys, inject configManager
+    if (tool.requiresApiKey && configManager) {
+        return await tool.handler(args, configManager);
+    }
+
     return await tool.handler(args);
 }
 

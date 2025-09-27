@@ -284,6 +284,54 @@
             padding: 0;
         }
 
+        /* CSV Table Styling */
+        .csv-table-container {
+            margin: 15px 0;
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .csv-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1a1b1f;
+            font-size: 14px;
+        }
+
+        .csv-table th {
+            background: #2d2d30;
+            color: #4fc3f7;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #444;
+            border-right: 1px solid #333;
+        }
+
+        .csv-table th:last-child {
+            border-right: none;
+        }
+
+        .csv-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #333;
+            border-right: 1px solid #333;
+            color: #e0e0e0;
+        }
+
+        .csv-table td:last-child {
+            border-right: none;
+        }
+
+        .csv-table tbody tr:hover {
+            background: #252526;
+        }
+
+        .csv-table tbody tr:nth-child(even) {
+            background: #1e1e1e;
+        }
+
         .message-content table {
             width: 100%;
             border-collapse: collapse;
@@ -951,9 +999,10 @@
                 toolDefinition.execute = async function(args) {
                     const result = await originalExecute(args);
                     
-                    // Add tool result directly to UI if it contains markdown
-                    if (result && typeof result === 'string' && 
-                        (result.includes('#') || result.includes('![') || result.includes('[') || result.includes('**'))) {
+                    // Add tool result directly to UI if it contains markdown (including tables)
+                    if (result && typeof result === 'string' &&
+                        (result.includes('#') || result.includes('![') || result.includes('[') || result.includes('**') ||
+                         result.includes('|') || result.includes('Here is the table'))) {
                         // Add the markdown result directly to conversation
                         setTimeout(() => {
                             addMessage('assistant', result);
@@ -967,6 +1016,50 @@
             }
             
             let session;
+
+            // Function to stream table content progressively to avoid UI freezing
+            function streamTableToUI(tableContent) {
+                const lines = tableContent.split('\n');
+                const messageId = 'streamed-table-' + Date.now();
+
+                // Start with just the table title/header
+                let currentContent = lines[0] + '\n\n'; // "Here is the table:"
+                addMessage('assistant', currentContent, messageId);
+
+                // Add table header (first few lines)
+                const headerLines = lines.slice(1, 4); // Title, header row, separator
+                currentContent += headerLines.join('\n') + '\n';
+                updateMessage(messageId, currentContent);
+
+                // Stream table rows progressively
+                let rowIndex = 4;
+                const streamNextChunk = () => {
+                    if (rowIndex < lines.length) {
+                        // Add next 3-5 rows at a time
+                        const chunk = lines.slice(rowIndex, rowIndex + 3);
+                        currentContent += chunk.join('\n') + '\n';
+                        updateMessage(messageId, currentContent);
+                        rowIndex += 3;
+
+                        // Continue streaming with small delay
+                        setTimeout(streamNextChunk, 100);
+                    }
+                };
+
+                // Start streaming after a brief delay
+                setTimeout(streamNextChunk, 200);
+            }
+
+            // Function to update an existing message
+            function updateMessage(messageId, content) {
+                const messageElement = document.getElementById(messageId);
+                if (messageElement) {
+                    const contentDiv = messageElement.querySelector('.message-content');
+                    if (contentDiv) {
+                        contentDiv.innerHTML = renderContent(content);
+                    }
+                }
+            }
             let agent;
             let transport;
             let isConnected = false;
@@ -1497,6 +1590,90 @@
             };
 
             // Rich content renderer
+            // Convert CSV-like content to HTML tables
+            function convertCSVToTable(html) {
+                // Look for CSV-like patterns in the content
+                const lines = html.split('\n');
+                let inTableBlock = false;
+                let tableLines = [];
+                let newHtml = '';
+                let i = 0;
+
+                while (i < lines.length) {
+                    const line = lines[i].trim();
+
+                    // Skip markdown table lines (already handled by marked.js)
+                    if (line.includes('|') && (line.includes('---') || line.match(/^\|.*\|$/))) {
+                        newHtml += line + '\n';
+                        i++;
+                        continue;
+                    }
+
+                    // Detect CSV-like content (comma separated with 3+ fields)
+                    const commaFields = line.split(',').map(f => f.trim());
+
+                    if (commaFields.length >= 3 && line.includes(',') && !line.includes('|')) {
+                        if (!inTableBlock) {
+                            // Start new table
+                            inTableBlock = true;
+                            tableLines = [line];
+                        } else {
+                            tableLines.push(line);
+                        }
+                    } else {
+                        // End of table block or regular content
+                        if (inTableBlock && tableLines.length > 1) {
+                            // Convert accumulated table lines to HTML table
+                            newHtml += convertLinesToHTMLTable(tableLines);
+                            tableLines = [];
+                            inTableBlock = false;
+                        } else if (inTableBlock) {
+                            // Single line, not a table
+                            newHtml += tableLines.join('\n') + '\n';
+                            tableLines = [];
+                            inTableBlock = false;
+                        }
+                        newHtml += line + '\n';
+                    }
+                    i++;
+                }
+
+                // Handle any remaining table at the end
+                if (inTableBlock && tableLines.length > 1) {
+                    newHtml += convertLinesToHTMLTable(tableLines);
+                }
+
+                return newHtml;
+            }
+
+            // Convert lines to HTML table
+            function convertLinesToHTMLTable(lines) {
+                let html = '<div class="csv-table-container"><table class="csv-table">';
+
+                lines.forEach((line, index) => {
+                    const fields = line.split(',').map(f => f.trim());
+
+                    if (index === 0) {
+                        // Header row
+                        html += '<thead><tr>';
+                        fields.forEach(field => {
+                            html += `<th>${field || ''}</th>`;
+                        });
+                        html += '</tr></thead><tbody>';
+                    } else {
+                        // Data row
+                        html += '<tr>';
+                        fields.forEach(field => {
+                            html += `<td>${field || ''}</td>`;
+                        });
+                        html += '</tr>';
+                    }
+                });
+
+                html += '</tbody></table></div>';
+                return html;
+            }
+
             function renderContent(content) {
                 // First check if it's already HTML with media
                 if (content.includes('<img') || content.includes('<video') || content.includes('<iframe>')) {
@@ -1524,30 +1701,36 @@
                     '<iframe width="560" height="315" src="https://www.youtube.com/embed/$2" frameborder="0" allowfullscreen></iframe>');
                 
                 // Convert image URLs that aren't already in img tags
-                html = html.replace(/(?<!src=")https?:\/\/[^\s<]+\.(jpg|jpeg|png|gif|webp)/gi, 
+                html = html.replace(/(?<!src=")https?:\/\/[^\s<]+\.(jpg|jpeg|png|gif|webp)/gi,
                     '<img src="$&" alt="Image">');
-                
+
+                // Convert CSV-like content to HTML tables
+                html = convertCSVToTable(html);
+
                 // Syntax highlighting for code blocks
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = html;
                 tempDiv.querySelectorAll('pre code').forEach(block => {
                     hljs.highlightElement(block);
                 });
-                
+
                 return tempDiv.innerHTML;
             }
 
             // Add message to conversation
-            function addMessage(role, content, raw = false) {
+            function addMessage(role, content, raw = false, messageId = null) {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${role}`;
-                
+                if (messageId) {
+                    messageDiv.id = messageId;
+                }
+
                 const time = new Date().toLocaleTimeString();
-                const roleLabel = role === 'user' ? 'You' : 
-                                 role === 'assistant' ? 'Assistant' : 
+                const roleLabel = role === 'user' ? 'You' :
+                                 role === 'assistant' ? 'Assistant' :
                                  role === 'tool' ? 'Tool' :
                                  role === 'system' ? 'System' : role;
-                
+
                 messageDiv.innerHTML = `
                     <div class="message-header">
                         <span class="message-role">${roleLabel}</span>
@@ -1639,7 +1822,121 @@
                     }
                 });
             }
-            
+
+            // Table workflow tool
+            const tableWorkflowTool = wrapTool({
+                name: 'table_workflow',
+                description: 'Search and format tables automatically (Workflow: search_documents → format_table)',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        query: {
+                            type: 'string',
+                            description: 'User query or request'
+                        }
+                    },
+                    required: ['query']
+                },
+                execute: async (args) => {
+                    try {
+                        // Show initial workflow start message
+                        addMessage('tool', `🔄 Starting table workflow for: "${args.query}"`);
+
+                        // Immediately show a placeholder that will be replaced
+                        const tableMessageId = 'live-table-' + Date.now();
+                        addMessage('assistant', '⏳ Generating table from your uploaded document...', false, tableMessageId);
+
+                        // Return a special response that tells the voice agent to be silent
+                        const immediateResponse = "[TOOL_HANDLING_RESPONSE] Table recreation in progress. UI updated directly.";
+
+                        // Execute workflow in background without blocking voice agent
+                        (async () => {
+                            try {
+                                // Add a progress indicator
+                                const progressId = 'workflow-progress-' + Date.now();
+                                addMessage('system', `<div id="${progressId}">⏳ Step 1/2: Searching documents...</div>`);
+
+                                console.log('Executing background workflow...', tableMessageId);
+
+                                const response = await fetch('/api/workflows/recreate-table/stream', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        query: args.query
+                                    })
+                                });
+
+                                if (!response.ok) {
+                                    throw new Error(`HTTP ${response.status}`);
+                                }
+
+                                // Set up Server-Sent Events reader
+                                const reader = response.body.getReader();
+                                const decoder = new TextDecoder();
+                                let progressElement = null;
+
+                                while (true) {
+                                    const { done, value } = await reader.read();
+                                    if (done) break;
+
+                                    const chunk = decoder.decode(value);
+                                    const lines = chunk.split('\n');
+
+                                    for (const line of lines) {
+                                        if (line.startsWith('data: ')) {
+                                            try {
+                                                const data = JSON.parse(line.slice(6));
+
+                                                if (data.type === 'status') {
+                                                    console.log('Status:', data.message);
+                                                } else if (data.type === 'progress') {
+                                                    if (!progressElement) {
+                                                        const progressId = 'workflow-progress-' + Date.now();
+                                                        addMessage('system', `<div id="${progressId}">⏳ ${data.step}: ${data.message}</div>`);
+                                                        progressElement = document.getElementById(progressId);
+                                                    } else {
+                                                        progressElement.innerHTML = `⏳ ${data.step}: ${data.message}`;
+                                                    }
+                                                } else if (data.type === 'table_chunk') {
+                                                    // Update the table message with progressive content
+                                                    updateMessage(tableMessageId, data.content);
+                                                    console.log('Streaming progress:', data.progress + '%');
+                                                } else if (data.type === 'complete') {
+                                                    if (progressElement) {
+                                                        progressElement.innerHTML = '✅ ' + data.message;
+                                                        setTimeout(() => {
+                                                            progressElement.style.opacity = '0.5';
+                                                        }, 2000);
+                                                    }
+                                                    console.log('Streaming complete');
+                                                } else if (data.type === 'error') {
+                                                    console.error('Streaming error:', data.message);
+                                                    updateMessage(tableMessageId, '❌ Error: ' + data.message);
+                                                    if (progressElement) {
+                                                        progressElement.innerHTML = '❌ Failed';
+                                                    }
+                                                }
+                                            } catch (parseError) {
+                                                console.error('Error parsing SSE data:', parseError);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (bgError) {
+                                console.error('Background workflow error:', bgError);
+                                updateMessage(tableMessageId, `❌ Workflow error: ${bgError.message}`);
+                            }
+                        })(); // Execute immediately as async IIFE
+
+                        return immediateResponse;
+
+                    } catch (error) {
+                        console.error('Table workflow error:', error);
+                        return `Error executing table workflow: ${error.message}`;
+                    }
+                }
+            });
+
             // Create proper tool definition for SDK
             const searchDocumentsTool = tool ? tool({
                 name: 'search_documents',
@@ -2191,6 +2488,10 @@
                     }
                     if (settings.tools?.cameraEnabled) {
                         enabledTools.push(imageAnalysisTool);
+                    }
+                    // Always add table workflow tool when RAG is enabled
+                    if (settings.tools?.ragEnabled) {
+                        enabledTools.push(tableWorkflowTool);
                     }
                     
                     // Add instruction about camera/image analysis
