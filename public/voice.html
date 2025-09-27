@@ -1590,9 +1590,12 @@
             };
 
             // Rich content renderer
-            // Convert CSV-like content to HTML tables
+            // Convert CSV-like content and vector DB results to HTML tables
             function convertCSVToTable(html) {
-                // Look for CSV-like patterns in the content
+                // First, handle vector DB "Row X contains:" format
+                html = convertVectorDBResultsToTable(html);
+
+                // Then handle regular CSV content
                 const lines = html.split('\n');
                 let inTableBlock = false;
                 let tableLines = [];
@@ -1646,6 +1649,88 @@
                 return newHtml;
             }
 
+            // Convert vector DB "Row X contains:" format to HTML table
+            function convertVectorDBResultsToTable(html) {
+                const lines = html.split('\n');
+                let headerFound = false;
+                let tableRows = [];
+                let headerRow = null;
+                let newHtml = '';
+                let i = 0;
+
+                while (i < lines.length) {
+                    const line = lines[i].trim();
+
+                    // Look for header row pattern (Row 5 usually contains headers)
+                    if (line.match(/^Row \d+.*contains:.*,.*,.*,/)) {
+                        const content = line.split('contains:')[1]?.trim();
+                        if (content && content.split(',').length >= 5) {
+                            if (!headerFound && (content.includes('Use Case') || content.includes('Category') || content.includes('Channel'))) {
+                                // This looks like a header row
+                                headerRow = content.split(',').map(f => f.trim());
+                                headerFound = true;
+                            } else if (headerFound) {
+                                // This is a data row
+                                const rowData = content.split(',').map(f => f.trim());
+                                tableRows.push(rowData);
+                            } else {
+                                newHtml += line + '\n';
+                            }
+                        } else {
+                            if (headerFound && tableRows.length > 0) {
+                                // End of table, render it
+                                newHtml += renderVectorDBTable(headerRow, tableRows);
+                                headerFound = false;
+                                tableRows = [];
+                                headerRow = null;
+                            }
+                            newHtml += line + '\n';
+                        }
+                    } else {
+                        if (headerFound && tableRows.length > 0) {
+                            // End of table, render it
+                            newHtml += renderVectorDBTable(headerRow, tableRows);
+                            headerFound = false;
+                            tableRows = [];
+                            headerRow = null;
+                        }
+                        newHtml += line + '\n';
+                    }
+                    i++;
+                }
+
+                // Handle any remaining table at the end
+                if (headerFound && tableRows.length > 0) {
+                    newHtml += renderVectorDBTable(headerRow, tableRows);
+                }
+
+                return newHtml;
+            }
+
+            // Render vector DB table as HTML
+            function renderVectorDBTable(headers, rows) {
+                let html = '<div class="csv-table-container"><table class="csv-table">';
+
+                // Header
+                html += '<thead><tr>';
+                headers.forEach(header => {
+                    html += `<th>${header || ''}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+
+                // Data rows
+                rows.forEach(row => {
+                    html += '<tr>';
+                    headers.forEach((_, index) => {
+                        html += `<td>${row[index] || ''}</td>`;
+                    });
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+                return html + '\n';
+            }
+
             // Convert lines to HTML table
             function convertLinesToHTMLTable(lines) {
                 let html = '<div class="csv-table-container"><table class="csv-table">';
@@ -1680,6 +1765,11 @@
                     return content;
                 }
                 
+                // Handle vector DB "Row X contains:" format BEFORE markdown processing
+                if (content.includes('Row 5 contains:') || (content.includes('Row ') && content.includes('contains:'))) {
+                    content = convertVectorDBResultsToTable(content);
+                }
+
                 // Configure marked for better rendering
                 marked.setOptions({
                     breaks: true, // Convert \n to <br>

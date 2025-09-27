@@ -694,9 +694,18 @@ class AdminDashboard {
         }
 
                 // Load API & Tools data for the new unified section
-        if (typeof loadApiAndToolsData === 'function') {
-            await loadApiAndToolsData();
+        if (typeof loadApiAndTools === 'function') {
+            await loadApiAndTools();
         }
+
+        // Load workflows for the workflows section
+        await this.loadWorkflows();
+
+        // Load documents for the documents section
+        await loadDocumentList();
+
+        // Initialize upload functionality
+        initializeUpload();
     }
     
     async applySettings(settings) {
@@ -802,7 +811,7 @@ class AdminDashboard {
                         document.getElementById('openaiKey').value = apis.openai.apiKey ? '••••••••••••••••' : '';
                         document.getElementById('openaiKey').placeholder = apis.openai.apiKey ? 'API Key Configured' : 'Enter OpenAI API Key';
                     }
-                    if (document.getElementById('openaiOrg')) document.getElementById('openaiOrg').value = apis.openai.organizationId || '';
+                    if (document.getElementById('openaiOrg')) document.getElementById('openaiOrg').value = apis.openai.organization || '';
                 }
 
                 if (apis.google) {
@@ -825,12 +834,12 @@ class AdminDashboard {
                     if (document.getElementById('amadeusSandbox')) document.getElementById('amadeusSandbox').checked = apis.amadeus.sandbox !== false;
                 }
 
-                if (apis.openweather) {
+                if (apis.weather) {
                     if (document.getElementById('weatherKey')) {
-                        document.getElementById('weatherKey').value = apis.openweather.apiKey ? '••••••••••••••••' : '';
-                        document.getElementById('weatherKey').placeholder = apis.openweather.apiKey ? 'API Key Configured' : 'Enter Weather API Key';
+                        document.getElementById('weatherKey').value = apis.weather.apiKey ? '••••••••••••••••' : '';
+                        document.getElementById('weatherKey').placeholder = apis.weather.apiKey ? 'API Key Configured' : 'Enter Weather API Key';
                     }
-                    if (document.getElementById('weatherUnits')) document.getElementById('weatherUnits').value = apis.openweather.units || 'metric';
+                    if (document.getElementById('weatherUnits')) document.getElementById('weatherUnits').value = apis.weather.units || 'imperial';
                 }
 
                 if (apis.pinecone) {
@@ -922,15 +931,32 @@ class AdminDashboard {
     }
     
     // Custom function management
-    
+
     addCustomFunction() {
         // Show custom function creation dialog
         console.log('Add custom function');
+    }
+
+    // Workflow management integration
+    async loadWorkflows() {
+        try {
+            console.log('AdminDashboard: Loading workflows...');
+
+            // Call the external workflow loading function
+            if (typeof loadLangGraphWorkflows === 'function') {
+                await loadLangGraphWorkflows();
+            } else {
+                console.error('loadLangGraphWorkflows function not found');
+            }
+        } catch (error) {
+            console.error('AdminDashboard: Error loading workflows:', error);
+        }
     }
 }
 
 // Initialize admin dashboard
 const admin = new AdminDashboard();
+window.admin = admin; // Make globally available
 
 // Add CSS animations
 const style = document.createElement('style');
@@ -1614,6 +1640,9 @@ async function refreshDocumentStatus() {
             lastUpdatedText.textContent = new Date().toLocaleTimeString();
         }
 
+        // FIXED: Load document list
+        await loadDocumentList();
+
         console.log('Document status refreshed successfully');
     } catch (error) {
         console.error('Error refreshing document status:', error);
@@ -1627,21 +1656,222 @@ async function refreshDocumentStatus() {
     }
 }
 
-// Fix 2: Enhanced Tools Display Function
-async function loadApiAndTools() {
-    const loadingElement = document.getElementById('api-tools-loading');
-    const servicesContainer = document.getElementById('api-services-container');
+// FIXED: Load and display document list
+async function loadDocumentList() {
+    try {
+        console.log('Loading document list...');
+        const response = await fetch('/api/documents');
+        const data = await response.json();
+        console.log('Document API response:', data);
+
+        const documentList = document.getElementById('documentList');
+        const documentCount = document.getElementById('documentCount');
+        console.log('DOM elements found:', !!documentList, !!documentCount);
+
+        if (data.success && data.documents) {
+            if (documentCount) {
+                documentCount.textContent = `${data.count} document${data.count !== 1 ? 's' : ''}`;
+            }
+
+            if (documentList) {
+                if (data.documents.length === 0) {
+                    documentList.innerHTML = '<p style="text-align: center; color: #666;">No documents uploaded yet</p>';
+                } else {
+                    const html = data.documents.map(doc => `
+                        <div class="document-item">
+                            <div class="document-info">
+                                <div class="document-name">${doc.fileName}</div>
+                                <div class="document-meta">
+                                    ${doc.fileType} • ${(doc.size / 1024).toFixed(1)}KB •
+                                    ${doc.chunks} chunk${doc.chunks !== 1 ? 's' : ''} •
+                                    Uploaded ${new Date(doc.uploadedAt).toLocaleDateString()}
+                                </div>
+                            </div>
+                            <div class="document-actions">
+                                <button class="button small" onclick="downloadDocument('${doc.id}')">Download</button>
+                                <button class="button small danger" onclick="deleteDocument('${doc.id}')">Delete</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    documentList.innerHTML = html;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading document list:', error);
+        const documentList = document.getElementById('documentList');
+        if (documentList) {
+            documentList.innerHTML = '<p style="text-align: center; color: #c33;">Error loading documents</p>';
+        }
+    }
+}
+
+// Download document function
+async function downloadDocument(docId) {
+    try {
+        const response = await fetch(`/api/documents/${docId}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success && data.document && data.document.content) {
+            // Create and download file
+            const blob = new Blob([data.document.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.document.fileName || `document-${docId}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } else {
+            throw new Error(data.error || 'Failed to get document content');
+        }
+    } catch (error) {
+        console.error('Download error:', error);
+        alert(`Failed to download document: ${error.message}`);
+    }
+}
+
+// Delete document function
+async function deleteDocument(docId) {
+    if (!confirm('Are you sure you want to delete this document?')) return;
 
     try {
-        console.log('Loading API and Tools data...');
+        const response = await fetch(`/api/documents/${docId}`, {
+            method: 'DELETE'
+        });
 
-        // Ensure loading spinner is visible
-        if (loadingElement) {
-            loadingElement.style.display = 'block';
+        if (response.ok) {
+            await loadDocumentList(); // Refresh the list
+            alert('Document deleted successfully');
+        } else {
+            throw new Error(`HTTP ${response.status}`);
         }
-        if (servicesContainer) {
-            servicesContainer.style.display = 'none';
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert(`Failed to delete document: ${error.message}`);
+    }
+}
+
+// Clear all documents function
+async function clearAllDocuments() {
+    if (!confirm('Are you sure you want to delete ALL documents? This cannot be undone.')) return;
+
+    try {
+        const response = await fetch('/api/documents', {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            await loadDocumentList(); // Refresh the list
+            alert('All documents cleared successfully');
+        } else {
+            throw new Error(`HTTP ${response.status}`);
         }
+    } catch (error) {
+        console.error('Clear all error:', error);
+        alert(`Failed to clear documents: ${error.message}`);
+    }
+}
+
+// Document upload functionality
+function initializeUpload() {
+    const fileInput = document.getElementById('fileInput');
+    const uploadZone = document.getElementById('uploadZone');
+    const uploadLoading = document.getElementById('uploadLoading');
+
+    // File input change handler
+    if (fileInput) {
+        fileInput.addEventListener('change', handleFileSelect);
+    }
+
+    // Drag and drop handlers
+    if (uploadZone) {
+        uploadZone.addEventListener('dragover', handleDragOver);
+        uploadZone.addEventListener('dragleave', handleDragLeave);
+        uploadZone.addEventListener('drop', handleDrop);
+    }
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('dragover');
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    uploadFiles(files);
+}
+
+function handleFileSelect(e) {
+    const files = e.target.files;
+    uploadFiles(files);
+}
+
+async function uploadFiles(files) {
+    const uploadLoading = document.getElementById('uploadLoading');
+
+    if (files.length === 0) return;
+
+    try {
+        if (uploadLoading) {
+            uploadLoading.style.display = 'block';
+        }
+
+        for (const file of files) {
+            await uploadSingleFile(file);
+        }
+
+        // Refresh document list
+        await loadDocumentList();
+        alert(`Successfully uploaded ${files.length} file${files.length !== 1 ? 's' : ''}`);
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        alert(`Upload failed: ${error.message}`);
+    } finally {
+        if (uploadLoading) {
+            uploadLoading.style.display = 'none';
+        }
+    }
+}
+
+async function uploadSingleFile(file) {
+    const formData = new FormData();
+    formData.append('document', file);
+
+    const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(result.error || 'Upload failed');
+    }
+
+    return result;
+}
+
+// Fix 2: Enhanced Tools Display Function
+// FIXED: Clean API & Tools loading
+async function loadApiAndTools() {
+    try {
+        console.log('Loading API and Tools data...');
 
         // Load API keys status
         const apiResponse = await fetch('/api/apikeys/status');
@@ -1650,35 +1880,164 @@ async function loadApiAndTools() {
         }
         const apiData = await apiResponse.json();
 
-        // Load comprehensive tools data
+        // Load tools data
         const toolsResponse = await fetch('/api/tools/comprehensive');
         if (!toolsResponse.ok) {
             throw new Error(`Tools endpoint failed: ${toolsResponse.status}`);
         }
         const toolsData = await toolsResponse.json();
 
-        console.log('Tools data loaded:', toolsData);
+        console.log('Received API data:', Object.keys(apiData));
+        console.log('Received tools data:', toolsData.success ? 'SUCCESS' : 'FAILED');
+        console.log('Number of tools:', toolsData.config?.toolsWithInstructions?.tools ? Object.keys(toolsData.config.toolsWithInstructions.tools).length : 0);
 
-        // Render services in the new unified API & Tools section
-        if (toolsData.success && toolsData.config) {
-            renderUnifiedServices(apiData, toolsData);
-        } else {
-            // Handle API success but no config data
-            console.warn('Tools API succeeded but no config data found');
-            showApiToolsError('No tool configuration data available');
-        }
-
-        // Also populate the old tools list for backward compatibility
+        // Populate API credentials AND tools list - RESTORED FUNCTIONALITY
+        populateApiKeyFields(apiData);
         updateToolsList(toolsData);
 
-        // Ensure loading spinner is hidden on success
-        hideApiToolsLoading();
+        // Also call renderUnifiedServices for the service overview
+        renderUnifiedServices(apiData, toolsData);
+
+        console.log('API & Tools loaded successfully');
 
     } catch (error) {
         console.error('Error loading API and Tools:', error);
-        showApiToolsError(error.message || 'Failed to load API and tools configuration');
-        hideApiToolsLoading();
+        showApiToolsError(error.message);
     }
+}
+
+// CLEAN: Populate API credentials interface
+function populateApiCredentials(apiData) {
+    const container = document.getElementById('api-credentials-container');
+    if (!container) return;
+
+    const apiProviders = [
+        { key: 'openai', name: 'OpenAI', icon: '🤖', fields: ['apiKey', 'organization'] },
+        { key: 'google', name: 'Google Search', icon: '🔍', fields: ['apiKey', 'searchEngineId'] },
+        { key: 'amadeus', name: 'Amadeus Travel', icon: '✈️', fields: ['clientId', 'clientSecret'] },
+        { key: 'weather', name: 'Weather API', icon: '🌤️', fields: ['apiKey'] },
+        { key: 'pinecone', name: 'Pinecone Vector DB', icon: '🗂️', fields: ['apiKey', 'environment', 'indexName'] }
+    ];
+
+    const html = apiProviders.map(provider => {
+        const data = apiData[provider.key] || {};
+        const isConfigured = provider.fields.some(field =>
+            field.includes('Key') || field.includes('Secret') || field.includes('Id') ? data[field] === true : data[field]
+        );
+
+        return `
+            <div class="api-group" style="border: 2px solid ${isConfigured ? '#28a745' : '#e5e5e7'};">
+                <div class="api-header">
+                    <span class="api-title">${provider.icon} ${provider.name}</span>
+                    <span class="status ${isConfigured ? 'valid' : 'pending'}">${isConfigured ? 'Configured' : 'Not configured'}</span>
+                </div>
+                <div class="form-group">
+                    <small style="color: #666;">
+                        ${isConfigured ? 'Loaded from .env file or encrypted storage' : 'Add API key to .env file or configure below'}
+                    </small>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+// CLEAN: Populate simple tools list
+function populateSimpleToolsList(toolsData) {
+    const container = document.getElementById('simple-tools-list');
+    if (!container || !toolsData.success) return;
+
+    const tools = toolsData.config.toolsWithInstructions.tools;
+    const html = Object.entries(tools).map(([name, tool]) => `
+        <div class="tool-item" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e5e5e7; border-radius: 8px; margin-bottom: 8px;">
+            <div>
+                <div style="font-weight: 500;">${name.replace(/_/g, ' ')}</div>
+                <div style="font-size: 13px; color: #666;">${tool.description}</div>
+            </div>
+            <label style="margin: 0;">
+                <input type="checkbox" ${tool.enabled ? 'checked' : ''} onchange="toggleTool('${name}', this.checked)">
+                <span style="margin-left: 8px;">${tool.enabled ? 'Enabled' : 'Disabled'}</span>
+            </label>
+        </div>
+    `).join('');
+
+    container.innerHTML = html;
+}
+
+// LEGACY: Keep old function for compatibility
+function populateApiKeyFields(apis) {
+    console.log('Populating API key fields with data:', apis);
+
+    // Enable and clear loading placeholders for API key fields
+    const apiElements = [
+        'openaiKey', 'openaiOrg', 'googleKey', 'googleSearchEngineId',
+        'amadeusClientId', 'amadeusClientSecret', 'weatherKey', 'weatherUnits',
+        'pineconeApiKey', 'pineconeEnvironment', 'pineconeIndexName'
+    ];
+
+    apiElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.disabled = false;
+            element.placeholder = '';
+        }
+    });
+
+    // Populate OpenAI fields
+    if (apis.openai) {
+        if (document.getElementById('openaiKey')) {
+            document.getElementById('openaiKey').value = apis.openai.apiKey ? '••••••••••••••••' : '';
+            document.getElementById('openaiKey').placeholder = apis.openai.apiKey ? 'API Key Configured' : 'Enter OpenAI API Key';
+        }
+        if (document.getElementById('openaiOrg')) document.getElementById('openaiOrg').value = apis.openai.organization || '';
+    }
+
+    // Populate Google fields
+    if (apis.google) {
+        if (document.getElementById('googleKey')) {
+            document.getElementById('googleKey').value = apis.google.apiKey ? '••••••••••••••••' : '';
+            document.getElementById('googleKey').placeholder = apis.google.apiKey ? 'API Key Configured' : 'Enter Google API Key';
+        }
+        if (document.getElementById('googleSearchEngineId')) {
+            document.getElementById('googleSearchEngineId').value =
+                (apis.google.searchEngineId === true) ? '••••••••••••••••' : (apis.google.searchEngineId || '');
+        }
+    }
+
+    // Populate Amadeus fields
+    if (apis.amadeus) {
+        if (document.getElementById('amadeusClientId')) {
+            document.getElementById('amadeusClientId').value = apis.amadeus.clientId ? '••••••••••••••••' : '';
+            document.getElementById('amadeusClientId').placeholder = apis.amadeus.clientId ? 'Client ID Configured' : 'Enter Amadeus Client ID';
+        }
+        if (document.getElementById('amadeusClientSecret')) {
+            document.getElementById('amadeusClientSecret').value = apis.amadeus.clientSecret ? '••••••••••••••••' : '';
+            document.getElementById('amadeusClientSecret').placeholder = apis.amadeus.clientSecret ? 'Client Secret Configured' : 'Enter Amadeus Client Secret';
+        }
+        if (document.getElementById('amadeusSandbox')) document.getElementById('amadeusSandbox').checked = apis.amadeus.sandbox !== false;
+    }
+
+    // Populate Weather fields
+    if (apis.weather) {
+        if (document.getElementById('weatherKey')) {
+            document.getElementById('weatherKey').value = apis.weather.apiKey ? '••••••••••••••••' : '';
+            document.getElementById('weatherKey').placeholder = apis.weather.apiKey ? 'API Key Configured' : 'Enter Weather API Key';
+        }
+        if (document.getElementById('weatherUnits')) document.getElementById('weatherUnits').value = apis.weather.units || 'imperial';
+    }
+
+    // Populate Pinecone fields
+    if (apis.pinecone) {
+        if (document.getElementById('pineconeApiKey')) {
+            document.getElementById('pineconeApiKey').value = apis.pinecone.apiKey ? '••••••••••••••••' : '';
+            document.getElementById('pineconeApiKey').placeholder = apis.pinecone.apiKey ? 'API Key Configured' : 'Enter Pinecone API Key';
+        }
+        if (document.getElementById('pineconeEnvironment')) document.getElementById('pineconeEnvironment').value = apis.pinecone.environment || '';
+        if (document.getElementById('pineconeIndexName')) document.getElementById('pineconeIndexName').value = apis.pinecone.indexName || '';
+    }
+
+    console.log('API key fields populated successfully');
 }
 
 // Centralized function to hide loading spinner
@@ -1751,6 +2110,12 @@ function renderUnifiedServices(apiData, toolsData) {
             icon: '👁️',
             connected: !!apiData.openai, // Requires OpenAI for GPT-4 Vision
             tools: []
+        },
+        formatting: {
+            name: 'Data Formatting',
+            icon: '📊',
+            connected: !!apiData.openai, // Requires OpenAI for GPT-4o-mini
+            tools: []
         }
     };
 
@@ -1771,6 +2136,15 @@ function renderUnifiedServices(apiData, toolsData) {
                 services.weather.tools.push(toolInfo);
             } else if (tool.category === 'vision') {
                 services.vision.tools.push(toolInfo);
+                // Also add to OpenAI since it uses GPT-4 Vision
+                services.openai.tools.push({...toolInfo, category: 'vision'});
+            } else if (tool.category === 'formatting') {
+                services.formatting.tools.push(toolInfo);
+                // Also add to OpenAI since it uses GPT-4o-mini
+                services.openai.tools.push({...toolInfo, category: 'formatting'});
+            } else if (tool.category === 'workflow') {
+                // Skip workflow tools - they're managed in dedicated Workflows section
+                console.log('Skipping workflow tool for API section:', toolName);
             } else {
                 // Default to appropriate service
                 if (toolName.includes('search') || toolName.includes('google')) {
@@ -1867,32 +2241,68 @@ function updateServiceStatusDisplay(services) {
     }
 }
 
-// Fix 7: Update Tools List for Legacy Support
+// FIXED: Update Tools List with proper error handling and debugging
 function updateToolsList(toolsData) {
+    console.log('updateToolsList called with:', toolsData);
+
     const toolsListElement = document.getElementById('tools-list');
-    if (toolsListElement && toolsData.success) {
-        const tools = toolsData.config.toolsWithInstructions.tools;
-        const toolsHTML = Object.entries(tools).map(([toolName, tool]) => `
-            <div class="tool-item enhanced">
+    console.log('Found tools-list element:', !!toolsListElement);
+
+    if (!toolsListElement) {
+        console.error('tools-list element not found in DOM');
+        return;
+    }
+
+    if (!toolsData || !toolsData.success) {
+        console.error('Invalid tools data:', toolsData);
+        toolsListElement.innerHTML = '<div style="color: #c33; padding: 20px; text-align: center;">Error loading tools data</div>';
+        return;
+    }
+
+    const tools = toolsData.config?.toolsWithInstructions?.tools;
+    if (!tools) {
+        console.error('No tools found in data structure:', toolsData.config);
+        toolsListElement.innerHTML = '<div style="color: #c33; padding: 20px; text-align: center;">No tools configuration found</div>';
+        return;
+    }
+
+    console.log('Found tools:', Object.keys(tools));
+
+    const toolsHTML = Object.entries(tools).map(([toolName, tool]) => {
+        // Add category badge
+        const categoryBadge = tool.category ? `<span class="tool-type" style="background: #667eea; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 8px;">${tool.category}</span>` : '';
+
+        return `
+            <div class="tool-item enhanced" style="border: 1px solid #e5e5e7; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: white;">
                 <div class="tool-info">
-                    <div class="tool-name">${toolName.replace(/_/g, ' ')}</div>
-                    <div class="tool-description">${tool.description}</div>
+                    <div class="tool-name" style="font-weight: 600; font-size: 16px; color: #1d1d1f; margin-bottom: 4px;">
+                        ${toolName.replace(/_/g, ' ')}${categoryBadge}
+                    </div>
+                    <div class="tool-description" style="color: #666; font-size: 14px; margin-bottom: 8px;">${tool.description}</div>
                 </div>
-                <div class="tool-controls">
-                    <button class="tool-edit-btn" onclick="editToolInstructions('${toolName}')">
+                <div class="tool-controls" style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+                    <button class="tool-edit-btn" onclick="editToolInstructions('${toolName}')"
+                            style="background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                         📝 Instructions
                     </button>
-                    <label style="margin-left: 12px;">
+                    <label style="display: flex; align-items: center; gap: 6px; margin: 0;">
                         <input type="checkbox" ${tool.enabled ? 'checked' : ''}
-                               onchange="toggleTool('${toolName}', this.checked)">
-                        <span style="margin-left: 4px; font-size: 14px;">${tool.enabled ? 'Enabled' : 'Disabled'}</span>
+                               onchange="toggleTool('${toolName}', this.checked)"
+                               style="margin: 0;">
+                        <span style="font-size: 14px; color: ${tool.enabled ? '#28a745' : '#6c757d'};">
+                            ${tool.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
                     </label>
                 </div>
             </div>
-        `).join('');
+        `;
+    }).join('');
 
-        toolsListElement.innerHTML = toolsHTML;
-    }
+    console.log('Setting innerHTML with', Object.keys(tools).length, 'tools');
+    toolsListElement.innerHTML = toolsHTML;
+
+    // Verify the update worked
+    console.log('Tools list updated. New innerHTML length:', toolsListElement.innerHTML.length);
 }
 
 // Add form submit handlers
@@ -1905,9 +2315,12 @@ document.addEventListener('DOMContentLoaded', function() {
         setInterval(refreshDocumentStatus, 30000);
     }
 
-    // Load API and tools data
+    // Load API and tools data immediately
+    console.log('Calling loadApiAndTools from DOMContentLoaded...');
     if (typeof loadApiAndTools === 'function') {
-        loadApiAndTools();
+        loadApiAndTools().catch(error => {
+            console.error('Error in DOMContentLoaded loadApiAndTools:', error);
+        });
 
         // Safety timeout: hide loading spinner after 10 seconds regardless
         setTimeout(() => {
@@ -1918,6 +2331,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 showApiToolsError('Loading timed out. Please refresh the page or check your connection.');
             }
         }, 10000);
+    } else {
+        console.error('loadApiAndTools function not found!');
+    }
+
+    // FIXED: Load workflows data immediately
+    console.log('Loading workflows from DOMContentLoaded...');
+    if (typeof loadLangGraphWorkflows === 'function') {
+        loadLangGraphWorkflows().catch(error => {
+            console.error('Error loading workflows:', error);
+        });
+    } else {
+        console.error('loadLangGraphWorkflows function not found!');
     }
 
     const toolForm = document.getElementById('tool-form');
@@ -1958,75 +2383,910 @@ document.addEventListener('DOMContentLoaded', function() {
 // Add CSS overrides to ensure advanced panels are visible when expanded
 const advancedPanelCSS = document.createElement('style');
 advancedPanelCSS.textContent = `
-    /* Force visibility for advanced panels */
+    /* ESSENTIAL FUNCTIONALITY - MINIMAL OVERRIDES */
+    /* Ensure dynamic content displays properly */
     #advancedRagSettings {
-        transition: all 0.3s ease !important;
-        overflow: visible !important;
-        max-height: none !important;
-        opacity: 1 !important;
+        transition: all 0.3s ease;
     }
 
     #advancedRagSettings[style*="display: block"] {
         display: block !important;
-        visibility: visible !important;
-        height: auto !important;
+        visibility: visible;
     }
 
-    /* Ensure toggle button is clickable */
-    #toggleAdvancedRag {
-        pointer-events: auto !important;
-        cursor: pointer !important;
-        z-index: 100 !important;
-        position: relative !important;
-    }
-
-    /* Make sure modal dialogs appear above everything */
-    .modal {
-        z-index: 10000 !important;
-    }
-
-    /* Fix any overflow issues that might hide content */
-    .admin-container,
-    .content,
-    .section {
-        overflow: visible !important;
-    }
-
-    .section.active {
-        overflow-y: auto !important;
-    }
-
-    .service-content {
-        overflow: visible !important;
-    }
-
-    /* Ensure service groups can expand */
+    /* Ensure service containers display properly */
     .service-group {
-        overflow: visible !important;
-        height: auto !important;
+        display: block;
+        visibility: visible;
     }
 
-    /* Fix tool items visibility */
+    /* Ensure tool items display in flexbox layout */
     .tool-item.enhanced {
         display: flex !important;
-        visibility: visible !important;
+        visibility: visible;
     }
 
-    /* Ensure buttons work */
+    /* Ensure API services container shows when populated */
+    #api-services-container[style*="display: block"] {
+        display: block !important;
+        visibility: visible;
+    }
+
+    /* Ensure buttons are interactive */
     button,
     .button,
     .tool-edit-btn {
-        pointer-events: auto !important;
-        cursor: pointer !important;
+        cursor: pointer;
+        pointer-events: auto;
     }
 
-    /* Make sure instruction editing modal is visible */
+    /* Ensure modals appear properly */
+    .modal {
+        z-index: 10000;
+    }
+
     div[style*="position: fixed"] {
-        z-index: 10001 !important;
+        z-index: 10001;
     }
 `;
 document.head.appendChild(advancedPanelCSS);
 document.head.appendChild(style);
+
+// Add missing global functions
+window.switchSection = function(sectionId) {
+    // Hide all sections
+    document.querySelectorAll('.section').forEach(section => {
+        section.classList.remove('active');
+    });
+
+    // Remove active class from all nav items
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    // Show target section
+    const targetSection = document.getElementById(sectionId);
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+
+    // Add active class to corresponding nav item
+    const navItem = document.querySelector(`[onclick*="${sectionId}"]`);
+    if (navItem) {
+        navItem.classList.add('active');
+    }
+
+    // Load section-specific data
+    if (sectionId === 'workflows') {
+        console.log('Switching to workflows section...');
+        if (window.admin && typeof admin.loadWorkflows === 'function') {
+            admin.loadWorkflows();
+        } else {
+            console.error('Admin dashboard not available for workflow loading');
+        }
+    } else if (sectionId === 'api-tools') {
+        if (typeof loadApiAndTools === 'function') {
+            loadApiAndTools();
+        }
+    }
+};
+
+window.saveSettings = function() {
+    console.log('Saving settings...');
+    // Implementation would go here
+    alert('Settings saved! (Implementation pending)');
+};
+
+window.saveApiKeys = function() {
+    console.log('Saving API keys...');
+    // Implementation would go here
+    alert('API keys saved! (Implementation pending)');
+};
+
+window.showAlert = function(message, type = 'info') {
+    const alertElement = document.getElementById('alert');
+    if (alertElement) {
+        alertElement.textContent = message;
+        alertElement.className = `alert ${type} show`;
+        setTimeout(() => {
+            alertElement.classList.remove('show');
+        }, 3000);
+    }
+};
+
+// COMPLETE LANGGRAPH WORKFLOW MANAGEMENT SYSTEM
+
+// Global workflow state
+let langGraphWorkflows = [];
+let availableToolsForWorkflows = {};
+
+// Load LangGraph workflows from server
+async function loadLangGraphWorkflows() {
+    console.log('Loading LangGraph workflows...');
+
+    const container = document.getElementById('langgraph-workflows-list');
+    if (!container) {
+        console.error('langgraph-workflows-list container not found');
+        return;
+    }
+
+    try {
+        console.log('Fetching workflows from /api/workflows...');
+        const response = await fetch('/api/workflows');
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Workflows loaded:', data);
+
+            langGraphWorkflows = data.workflows || [];
+            console.log('Number of workflows:', langGraphWorkflows.length);
+
+            renderLangGraphWorkflowsList();
+            updateWorkflowStats();
+
+            console.log('Workflows rendering completed');
+        } else {
+            console.error('Failed to load workflows:', response.status);
+            container.innerHTML = '<div style="color: #c33; padding: 20px; text-align: center;">Failed to load workflows (HTTP ' + response.status + ')</div>';
+        }
+    } catch (error) {
+        console.error('Error loading workflows:', error);
+        container.innerHTML = '<div style="color: #c33; padding: 20px; text-align: center;">Error loading workflows: ' + error.message + '</div>';
+    }
+}
+
+// Render workflows list
+function renderLangGraphWorkflowsList() {
+    const container = document.getElementById('langgraph-workflows-list');
+    if (!container) return;
+
+    if (langGraphWorkflows.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: #666;">
+                <div style="font-size: 48px; margin-bottom: 16px;">🔗</div>
+                <p>No LangGraph workflows created yet</p>
+                <p style="font-size: 14px;">Create your first workflow to chain tools together automatically</p>
+            </div>
+        `;
+        return;
+    }
+
+    const html = langGraphWorkflows.map(workflow => {
+        const steps = Array.isArray(workflow.steps) ? workflow.steps : [];
+        const triggers = Array.isArray(workflow.triggers) ? workflow.triggers : [];
+        const stepCount = steps.length;
+        const isValid = stepCount > 0;
+
+        return `
+            <div class="workflow-item" style="border-left: 4px solid ${isValid ? '#28a745' : '#ffc107'};">
+                <div class="workflow-header">
+                    <div class="workflow-name">${workflow.name || 'Unnamed Workflow'}</div>
+                    <div class="workflow-status">
+                        <span class="status-indicator ${workflow.enabled && isValid ? 'connected' : ''}"></span>
+                        <span>${workflow.enabled && isValid ? 'Enabled' : (isValid ? 'Disabled' : 'Incomplete')}</span>
+                    </div>
+                </div>
+                <div class="workflow-description" style="margin-bottom: 12px; color: #666;">${workflow.description || 'No description'}</div>
+                <div class="workflow-steps">
+                    <strong>Steps (${stepCount}):</strong> ${stepCount > 0 ? steps.join(' → ') : '⚠️ No steps defined'}
+                </div>
+                <div class="workflow-triggers" style="margin-bottom: 12px;">
+                    <strong>Triggers:</strong> ${triggers.length > 0 ? triggers.join(', ') : '⚠️ No triggers set'}
+                </div>
+                <div class="workflow-meta" style="font-size: 12px; color: #999; margin-bottom: 12px;">
+                    Created: ${workflow.createdAt ? new Date(workflow.createdAt).toLocaleDateString() : 'Unknown'}
+                    ${workflow.updatedAt && workflow.updatedAt !== workflow.createdAt ?
+                        ` • Updated: ${new Date(workflow.updatedAt).toLocaleDateString()}` : ''}
+                </div>
+                <div class="workflow-actions">
+                    <button class="button small" onclick="editLangGraphWorkflow('${workflow.id}')">Edit</button>
+                    <button class="button small ${isValid ? '' : 'secondary'}" onclick="testLangGraphWorkflow('${workflow.id}')"
+                            ${!isValid ? 'disabled title="Add steps to enable testing"' : ''}>Test</button>
+                    <button class="button small ${workflow.enabled ? 'secondary' : 'success'}"
+                            onclick="toggleLangGraphWorkflow('${workflow.id}', ${!workflow.enabled})"
+                            ${!isValid ? 'disabled title="Add steps to enable workflow"' : ''}>
+                        ${workflow.enabled ? 'Disable' : 'Enable'}
+                    </button>
+                    <button class="button small danger" onclick="deleteLangGraphWorkflow('${workflow.id}')">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+// Edit existing LangGraph workflow
+async function editLangGraphWorkflow(workflowId) {
+    const workflow = langGraphWorkflows.find(w => w.id === workflowId);
+    if (!workflow) {
+        showAlert('Workflow not found', 'error');
+        return;
+    }
+
+    console.log('Starting to edit workflow:', workflow.name, 'with steps:', workflow.steps);
+
+    // SET EDITING STATE FIRST (before any other operations)
+    window.editingWorkflowId = workflowId;
+    console.log('EDIT STATE SET:', window.editingWorkflowId);
+
+    // Reset form manually (don't call createNewLangGraphWorkflow which clears edit state)
+    document.getElementById('langgraph-workflow-form').reset();
+    currentWorkflowSteps = [];
+
+    // Update modal title for editing
+    const modalTitle = document.querySelector('#langgraph-workflow-modal h2');
+    if (modalTitle) {
+        modalTitle.textContent = `Edit Workflow: ${workflow.name}`;
+    }
+
+    // Load available tools
+    await loadAvailableToolsForWorkflow();
+
+    // Pre-fill form
+    document.getElementById('workflow-name').value = workflow.name || '';
+    document.getElementById('workflow-description').value = workflow.description || '';
+    document.getElementById('workflow-triggers').value = (workflow.triggers || []).join(', ');
+
+    // Reset workflow canvas
+    const canvas = document.getElementById('workflow-canvas');
+    if (canvas) {
+        canvas.innerHTML = '<div class="workflow-placeholder">Loading workflow steps...</div>';
+    }
+
+    // Load workflow steps
+    console.log('Loading workflow steps:', workflow.steps);
+    (workflow.steps || []).forEach((toolName, index) => {
+        console.log(`Adding step ${index + 1}: ${toolName}`);
+        if (availableToolsForWorkflows[toolName]) {
+            setTimeout(() => addToolToWorkflow(toolName), index * 100);
+        } else {
+            console.warn(`Tool ${toolName} not found in available tools`);
+        }
+    });
+
+    // Show modal
+    document.getElementById('langgraph-workflow-modal').style.display = 'block';
+
+    console.log('Editing workflow setup complete - editingWorkflowId:', window.editingWorkflowId);
+}
+
+// Create new LangGraph workflow
+async function createNewLangGraphWorkflow() {
+    // Reset form
+    document.getElementById('langgraph-workflow-form').reset();
+    currentWorkflowSteps = [];
+
+    // Clear editing state
+    delete window.editingWorkflowId;
+
+    // Update modal title
+    const modalTitle = document.querySelector('#langgraph-workflow-modal h2');
+    if (modalTitle) {
+        modalTitle.textContent = 'Create LangGraph Workflow';
+    }
+
+    // Load available tools
+    await loadAvailableToolsForWorkflow();
+
+    // Clear workflow canvas
+    document.getElementById('workflow-canvas').innerHTML =
+        '<div class="workflow-placeholder"><div style="font-size: 32px; margin-bottom: 8px;">🔗</div><div>Add tools to build your workflow</div><div style="font-size: 12px; color: #999; margin-top: 4px;">Start with a search or data collection tool</div></div>';
+
+    // Show modal
+    document.getElementById('langgraph-workflow-modal').style.display = 'block';
+}
+
+// Close workflow builder
+function closeLangGraphWorkflowBuilder() {
+    document.getElementById('langgraph-workflow-modal').style.display = 'none';
+
+    // Clear editing state
+    delete window.editingWorkflowId;
+
+    // Reset workflow steps
+    currentWorkflowSteps = [];
+}
+
+// Load available tools for workflow building
+async function loadAvailableToolsForWorkflow() {
+    try {
+        const response = await fetch('/api/tools/comprehensive');
+        const data = await response.json();
+
+        if (data.success && data.config.toolsWithInstructions.tools) {
+            availableToolsForWorkflows = data.config.toolsWithInstructions.tools;
+            renderToolsPalette();
+        }
+    } catch (error) {
+        console.error('Error loading tools for workflow:', error);
+    }
+}
+
+// Render tools palette for workflow builder
+function renderToolsPalette() {
+    const container = document.getElementById('available-tools');
+    if (!container) return;
+
+    const html = Object.entries(availableToolsForWorkflows).map(([toolName, tool]) => `
+        <div class="tool-palette-item" draggable="true"
+             ondragstart="dragTool(event, '${toolName}')"
+             onclick="addToolToWorkflow('${toolName}')">
+            <div class="tool-icon">${getCategoryIcon(tool.category)}</div>
+            <div class="tool-info">
+                <div class="tool-name">${toolName.replace(/_/g, ' ')}</div>
+                <div class="tool-category">${tool.category}</div>
+            </div>
+        </div>
+    `).join('');
+
+    container.innerHTML = html;
+}
+
+// Get category icon for tools
+function getCategoryIcon(category) {
+    const icons = {
+        'rag': '📚',
+        'weather': '🌤️',
+        'vision': '👁️',
+        'formatting': '📊',
+        'workflow': '🔗',
+        'search': '🔍',
+        'travel': '✈️'
+    };
+    return icons[category] || '🔧';
+}
+
+// Add tool to workflow with validation and variable management
+function addToolToWorkflow(toolName) {
+    const canvas = document.getElementById('workflow-canvas');
+    const placeholder = canvas.querySelector('.workflow-placeholder');
+
+    if (placeholder) {
+        placeholder.remove();
+    }
+
+    const stepNumber = currentWorkflowSteps.length + 1;
+    const stepId = `workflow-step-${Date.now()}`;
+    const tool = availableToolsForWorkflows[toolName];
+
+    const stepElement = document.createElement('div');
+    stepElement.className = 'workflow-step-item';
+    stepElement.id = stepId;
+    stepElement.innerHTML = `
+        <div class="step-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <div class="step-number" style="background: #667eea; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600;">${stepNumber}</div>
+            <div class="step-content" style="flex: 1;">
+                <div class="step-tool-name" style="font-weight: 600; color: #1d1d1f;">${getCategoryIcon(tool?.category)} ${toolName.replace(/_/g, ' ')}</div>
+                <div class="step-tool-description" style="font-size: 12px; color: #666;">${tool?.description || 'No description'}</div>
+            </div>
+            <button class="step-remove" onclick="removeWorkflowStep('${stepId}')" style="background: #dc3545; color: white; border: none; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 12px;">×</button>
+        </div>
+        <div class="step-variables" style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 12px; color: #666;">
+            <strong>Input:</strong> ${getToolInputDescription(toolName, stepNumber)}
+            <br><strong>Output:</strong> ${getToolOutputDescription(toolName)}
+        </div>
+        ${stepNumber < 10 ? '<div class="step-arrow" style="text-align: center; color: #667eea; font-size: 18px; margin: 4px 0;">↓</div>' : ''}
+    `;
+
+    canvas.appendChild(stepElement);
+
+    currentWorkflowSteps.push({
+        id: stepId,
+        toolName: toolName,
+        order: stepNumber,
+        tool: tool
+    });
+
+    // Update variable configuration and validation
+    updateWorkflowVariablesConfig();
+    validateWorkflow();
+}
+
+// Get tool input description based on position in workflow
+function getToolInputDescription(toolName, stepNumber) {
+    if (stepNumber === 1) {
+        return "User's voice query";
+    }
+
+    const previousStep = currentWorkflowSteps[stepNumber - 2];
+    if (!previousStep) return "Unknown";
+
+    const inputMappings = {
+        'search_documents': 'Text query or keywords',
+        'format_table': 'Raw data from previous step',
+        'get_weather': 'Location from query or previous step',
+        'analyze_image': 'Image data or URL',
+        'unified_flight_search': 'Travel details from query'
+    };
+
+    return inputMappings[toolName] || `Output from ${previousStep.toolName}`;
+}
+
+// Get tool output description
+function getToolOutputDescription(toolName) {
+    const outputMappings = {
+        'search_documents': 'Raw document text and search results',
+        'format_table': 'Clean markdown table',
+        'get_weather': 'Weather information (temperature, conditions, forecast)',
+        'analyze_image': 'Image analysis and description',
+        'unified_flight_search': 'Flight options and booking information',
+        'list_documents': 'List of available documents',
+        'get_document': 'Full document content'
+    };
+
+    return outputMappings[toolName] || 'Tool execution result';
+}
+
+// Update variable configuration based on current workflow
+function updateWorkflowVariablesConfig() {
+    const container = document.getElementById('workflow-variables-config');
+    if (!container) return;
+
+    if (currentWorkflowSteps.length === 0) {
+        container.innerHTML = '<div style="color: #666; font-style: italic;">Add tools to see variable configuration options</div>';
+        return;
+    }
+
+    const html = currentWorkflowSteps.map((step, index) => {
+        const isFirst = index === 0;
+        const isLast = index === currentWorkflowSteps.length - 1;
+
+        return `
+            <div class="variable-step" style="border: 1px solid #e5e7eb; border-radius: 4px; padding: 12px; margin-bottom: 8px;">
+                <div style="font-weight: 600; margin-bottom: 4px;">${step.order}. ${step.toolName.replace(/_/g, ' ')}</div>
+                <div style="font-size: 12px; color: #666;">
+                    ${isFirst ?
+                        '📥 <strong>Input:</strong> User voice query (automatic)' :
+                        `📥 <strong>Input:</strong> Result from step ${step.order - 1}`
+                    }
+                    <br>📤 <strong>Output:</strong> ${getToolOutputDescription(step.toolName)}
+                    ${!isLast ? '<br>🔗 <strong>Flows to:</strong> Next step automatically' : '<br>✅ <strong>Final Result:</strong> Returned to user'}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+// Validate workflow configuration
+function validateWorkflow() {
+    const validationContainer = document.getElementById('workflow-validation');
+    if (!validationContainer) return;
+
+    const errors = [];
+    const warnings = [];
+
+    // Check for empty workflow
+    if (currentWorkflowSteps.length === 0) {
+        validationContainer.style.display = 'none';
+        return;
+    }
+
+    // Check for logical workflow patterns
+    const firstTool = currentWorkflowSteps[0]?.toolName;
+    const lastTool = currentWorkflowSteps[currentWorkflowSteps.length - 1]?.toolName;
+
+    // Validate first tool is appropriate
+    const goodFirstTools = ['search_documents', 'list_documents', 'get_weather', 'unified_flight_search'];
+    if (firstTool && !goodFirstTools.includes(firstTool)) {
+        warnings.push(`⚠️ "${firstTool}" might not be ideal as first step. Consider starting with search_documents or get_weather.`);
+    }
+
+    // Check for format_table without data source
+    const hasFormatTable = currentWorkflowSteps.some(s => s.toolName === 'format_table');
+    const hasDataSource = currentWorkflowSteps.some(s => ['search_documents', 'get_document'].includes(s.toolName));
+
+    if (hasFormatTable && !hasDataSource) {
+        errors.push('❌ format_table requires data input. Add search_documents or get_document first.');
+    }
+
+    // Check for analyze_image without image source
+    const hasAnalyzeImage = currentWorkflowSteps.some(s => s.toolName === 'analyze_image');
+    if (hasAnalyzeImage) {
+        warnings.push('⚠️ analyze_image needs image input. Ensure previous steps provide image data.');
+    }
+
+    // Display validation results
+    if (errors.length === 0 && warnings.length === 0) {
+        validationContainer.innerHTML = '<div style="color: #28a745;">✅ Workflow looks good!</div>';
+        validationContainer.style.background = '#d4edda';
+        validationContainer.style.border = '1px solid #c3e6cb';
+    } else {
+        const messages = [...errors, ...warnings];
+        validationContainer.innerHTML = messages.join('<br>');
+        validationContainer.style.background = errors.length > 0 ? '#f8d7da' : '#fff3cd';
+        validationContainer.style.border = errors.length > 0 ? '1px solid #f5c6cb' : '1px solid #ffeaa7';
+    }
+
+    validationContainer.style.display = 'block';
+}
+
+// Remove workflow step
+function removeWorkflowStep(stepId) {
+    const stepElement = document.getElementById(stepId);
+    if (stepElement) {
+        stepElement.remove();
+        currentWorkflowSteps = currentWorkflowSteps.filter(s => s.id !== stepId);
+        renumberWorkflowSteps();
+    }
+}
+
+// Renumber workflow steps
+function renumberWorkflowSteps() {
+    const canvas = document.getElementById('workflow-canvas');
+    const steps = canvas.querySelectorAll('.workflow-step-item');
+
+    steps.forEach((step, index) => {
+        const numberEl = step.querySelector('.step-number');
+        if (numberEl) {
+            numberEl.textContent = index + 1;
+        }
+
+        // Only update if the array element exists
+        if (currentWorkflowSteps[index]) {
+            currentWorkflowSteps[index].order = index + 1;
+        }
+    });
+
+    // Clean up array to match DOM
+    currentWorkflowSteps = currentWorkflowSteps.slice(0, steps.length);
+}
+
+// Save LangGraph workflow (create or update)
+async function saveLangGraphWorkflow(event) {
+    event.preventDefault();
+
+    console.log('=== SAVE WORKFLOW DEBUG ===');
+    console.log('editingWorkflowId at start:', window.editingWorkflowId);
+
+    const workflowData = {
+        name: document.getElementById('workflow-name').value,
+        description: document.getElementById('workflow-description').value,
+        triggers: document.getElementById('workflow-triggers').value.split(',').map(t => t.trim()).filter(t => t),
+        steps: currentWorkflowSteps.map(s => s.toolName),
+        enabled: true,
+        type: 'langgraph'
+    };
+
+    console.log('Workflow data to save:', workflowData);
+
+    // Validate workflow
+    if (!workflowData.name) {
+        showAlert('Please enter a workflow name', 'error');
+        return;
+    }
+
+    if (workflowData.steps.length === 0) {
+        showAlert('Please add at least one tool to the workflow', 'error');
+        return;
+    }
+
+    try {
+        const isEditing = !!window.editingWorkflowId;
+        const editingId = window.editingWorkflowId;
+
+        console.log('=== SAVE MODE DETECTION ===');
+        console.log('isEditing:', isEditing);
+        console.log('editingWorkflowId:', editingId);
+
+        const url = isEditing ? `/api/workflows/${editingId}` : '/api/workflows';
+        const method = isEditing ? 'PUT' : 'POST';
+
+        console.log(`Saving workflow via ${method} to ${url}`);
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(workflowData)
+        });
+
+        console.log('Save response status:', response.status, response.ok);
+
+        if (response.ok) {
+            const savedWorkflow = await response.json();
+
+            if (isEditing) {
+                // Update existing workflow in array
+                const index = langGraphWorkflows.findIndex(w => w.id === window.editingWorkflowId);
+                if (index >= 0) {
+                    langGraphWorkflows[index] = savedWorkflow.workflow;
+                }
+                showAlert('Workflow updated successfully!', 'success');
+            } else {
+                // Add new workflow to array
+                langGraphWorkflows.push(savedWorkflow.workflow);
+                showAlert('LangGraph workflow created successfully!', 'success');
+            }
+
+            renderLangGraphWorkflowsList();
+            updateWorkflowStats();
+            closeLangGraphWorkflowBuilder();
+
+            // Clear editing state
+            delete window.editingWorkflowId;
+
+        } else {
+            const error = await response.json();
+            showAlert(`Failed to save workflow: ${error.message}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error saving workflow:', error);
+        showAlert('Error saving workflow', 'error');
+    }
+}
+
+// Test current workflow being built (in modal)
+async function testCurrentWorkflow() {
+    if (currentWorkflowSteps.length === 0) {
+        showAlert('Please add some tools to the workflow first', 'error');
+        return;
+    }
+
+    const workflowData = {
+        name: document.getElementById('workflow-name').value || 'Test Workflow',
+        steps: currentWorkflowSteps.map(s => s.toolName)
+    };
+
+    try {
+        showAlert('Testing workflow...', 'info');
+
+        // Test workflow by creating temporary workflow and testing it
+        const tempWorkflow = {
+            ...workflowData,
+            id: `temp_${Date.now()}`,
+            enabled: true,
+            type: 'langgraph',
+            createdAt: new Date().toISOString()
+        };
+
+        // Create temporary workflow
+        const createResponse = await fetch('/api/workflows', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tempWorkflow)
+        });
+
+        if (!createResponse.ok) {
+            throw new Error('Failed to create temporary workflow for testing');
+        }
+
+        const createdWorkflow = await createResponse.json();
+        const tempId = createdWorkflow.workflow.id;
+
+        // Test the workflow
+        const response = await fetch(`/api/workflows/${tempId}/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: 'test workflow execution' })
+        });
+
+        // Clean up temporary workflow
+        await fetch(`/api/workflows/${tempId}`, { method: 'DELETE' });
+
+        if (response.ok) {
+            const result = await response.json();
+            showAlert(`Workflow test ${result.success ? 'passed' : 'failed'}`, result.success ? 'success' : 'error');
+        } else {
+            showAlert('Workflow test failed', 'error');
+        }
+    } catch (error) {
+        console.error('Error testing workflow:', error);
+        showAlert('Error testing workflow', 'error');
+    }
+}
+
+// Test saved LangGraph workflow
+async function testLangGraphWorkflow(workflowId) {
+    const workflow = langGraphWorkflows.find(w => w.id === workflowId);
+    if (!workflow) {
+        showAlert('Workflow not found', 'error');
+        return;
+    }
+
+    // Check if workflow has steps
+    if (!workflow.steps || workflow.steps.length === 0) {
+        showAlert('Cannot test empty workflow. Please edit and add steps first.', 'error');
+        return;
+    }
+
+    try {
+        console.log('Testing workflow ID:', workflowId);
+        showAlert('Testing workflow...', 'info');
+
+        const response = await fetch(`/api/workflows/${workflowId}/test`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: 'show me the table from the document' })
+        });
+
+        console.log('Test response status:', response.status, response.ok);
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('Full workflow test response:', result);
+
+            if (result.success) {
+                console.log('✅ WORKFLOW TEST PASSED!');
+                console.log('Workflow execution result:', result.result);
+
+                // Show alert with fallback
+                try {
+                    showAlert('✅ Workflow test passed! Created perfect table.', 'success');
+                } catch (alertError) {
+                    alert('✅ Workflow test passed! Created perfect table.');
+                }
+
+                // Show additional details if available
+                if (result.result && result.result.format_tableResult && result.result.format_tableResult.message) {
+                    console.log('Generated table:', result.result.format_tableResult.message);
+                }
+            } else {
+                console.log('❌ WORKFLOW TEST FAILED:', result);
+                try {
+                    showAlert(`❌ Workflow test failed: ${result.message || result.error || 'Unknown error'}`, 'error');
+                } catch (alertError) {
+                    alert(`❌ Workflow test failed: ${result.message || result.error || 'Unknown error'}`);
+                }
+                console.error('Workflow test error details:', result);
+            }
+        } else {
+            let errorMessage = `HTTP ${response.status}`;
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorData.error || errorMessage;
+            } catch (e) {
+                // Response might not be JSON
+            }
+            showAlert(`❌ Workflow test failed: ${errorMessage}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error testing workflow:', error);
+        showAlert('❌ Error testing workflow: ' + error.message, 'error');
+    }
+}
+
+// Toggle workflow enabled/disabled
+async function toggleLangGraphWorkflow(workflowId, enabled) {
+    try {
+        const response = await fetch(`/api/workflows/${workflowId}/toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled })
+        });
+
+        if (response.ok) {
+            const workflow = langGraphWorkflows.find(w => w.id === workflowId);
+            if (workflow) {
+                workflow.enabled = enabled;
+                renderLangGraphWorkflowsList();
+                updateWorkflowStats();
+            }
+            showAlert(`Workflow ${enabled ? 'enabled' : 'disabled'}`, 'success');
+        } else {
+            showAlert(`Failed to ${enabled ? 'enable' : 'disable'} workflow`, 'error');
+        }
+    } catch (error) {
+        console.error('Error toggling workflow:', error);
+        showAlert('Error updating workflow', 'error');
+    }
+}
+
+// Delete LangGraph workflow
+async function deleteLangGraphWorkflow(workflowId) {
+    if (!confirm('Are you sure you want to delete this workflow?')) return;
+
+    try {
+        const response = await fetch(`/api/workflows/${workflowId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            langGraphWorkflows = langGraphWorkflows.filter(w => w.id !== workflowId);
+            renderLangGraphWorkflowsList();
+            updateWorkflowStats();
+            showAlert('Workflow deleted successfully', 'success');
+        } else {
+            showAlert('Failed to delete workflow', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting workflow:', error);
+        showAlert('Error deleting workflow', 'error');
+    }
+}
+
+// Create workflow from template
+function createFromTemplate(templateType) {
+    const templates = {
+        'table-recreation': {
+            name: 'Table Recreation Workflow',
+            description: 'Automatically search documents and format tables for clean presentation',
+            triggers: ['recreate table', 'show me the table', 'format this data'],
+            steps: ['search_documents', 'format_table']
+        },
+        'research-summary': {
+            name: 'Research Summary Workflow',
+            description: 'Search multiple documents and create comprehensive summaries',
+            triggers: ['summarize research', 'create summary', 'research overview'],
+            steps: ['search_documents', 'format_table']
+        },
+        'travel-planner': {
+            name: 'Travel Planning Workflow',
+            description: 'Get weather, search flights, and find hotels automatically',
+            triggers: ['plan my trip', 'travel planning', 'book travel'],
+            steps: ['get_weather', 'unified_flight_search']
+        }
+    };
+
+    const template = templates[templateType];
+    if (!template) return;
+
+    // Pre-fill form with template data
+    createNewLangGraphWorkflow();
+    document.getElementById('workflow-name').value = template.name;
+    document.getElementById('workflow-description').value = template.description;
+    document.getElementById('workflow-triggers').value = template.triggers.join(', ');
+
+    // Add template steps to workflow
+    template.steps.forEach(toolName => {
+        if (availableToolsForWorkflows[toolName]) {
+            addToolToWorkflow(toolName);
+        }
+    });
+}
+
+// Update workflow statistics
+function updateWorkflowStats() {
+    const totalWorkflows = langGraphWorkflows.length;
+    const activeWorkflows = langGraphWorkflows.filter(w => w.enabled).length;
+
+    const totalEl = document.getElementById('total-workflows');
+    const activeEl = document.getElementById('active-workflows');
+
+    if (totalEl) totalEl.textContent = totalWorkflows;
+    if (activeEl) activeEl.textContent = activeWorkflows;
+}
+
+// Drag and drop functions for workflow builder
+function dragTool(event, toolName) {
+    console.log('Dragging tool:', toolName);
+    event.dataTransfer.setData('text/plain', toolName);
+    event.dataTransfer.effectAllowed = 'copy';
+}
+
+// Enable drop zone for workflow canvas
+function enableWorkflowDropZone() {
+    const canvas = document.getElementById('workflow-canvas');
+    if (!canvas) return;
+
+    canvas.addEventListener('dragover', function(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        canvas.classList.add('drag-over');
+    });
+
+    canvas.addEventListener('dragleave', function(event) {
+        canvas.classList.remove('drag-over');
+    });
+
+    canvas.addEventListener('drop', function(event) {
+        event.preventDefault();
+        canvas.classList.remove('drag-over');
+
+        const toolName = event.dataTransfer.getData('text/plain');
+        if (toolName) {
+            addToolToWorkflow(toolName);
+        }
+    });
+}
+
+// Load workflows when switching to workflows section
+function loadWorkflowsSection() {
+    console.log('Loading workflows section...');
+    loadLangGraphWorkflows();
+    enableWorkflowDropZone();
+}
 
 // Toggle Advanced RAG Settings function
 window.toggleAdvancedRagSettings = function() {

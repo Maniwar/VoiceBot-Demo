@@ -20,12 +20,14 @@ const toolRegistry = {
             category: 'rag',
             enabled: true,
             description: 'Advanced document search with configurable modes (simple/agentic)',
-            instructions: `WORKFLOW-FIRST APPROACH: Check if there's a dedicated workflow for the user's request before using individual tools.
+            instructions: `CRITICAL: DO NOT USE search_documents FOR TABLE REQUESTS! For any request containing "table", "recreate", "format table", use table_workflow tool instead.
+
+                WORKFLOW-FIRST APPROACH: Check if there's a dedicated workflow for the user's request before using individual tools.
 
                 WORKFLOW PRIORITY:
-                - For table requests ("recreate table", "show table", "format table"), use the available table workflow FIRST
+                - For table requests ("recreate table", "show table", "format table"), you MUST use the table_workflow tool - DO NOT use search_documents
                 - Workflows automatically chain multiple tools and provide better results
-                - Only use search_documents directly if no appropriate workflow exists
+                - Only use search_documents for non-table document searches
 
                 KNOWLEDGE-FIRST FALLBACK: If no workflow matches, search the knowledge base for relevant information.
 
