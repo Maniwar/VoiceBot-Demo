@@ -1578,9 +1578,9 @@
                     
                     if (result.success && result.document) {
                         const doc = result.document;
-                        const preview = doc.content ? doc.content.substring(0, 500) : 'No content available';
-                        // Display document content in conversation
-                        addMessage('system', `📄 **Document: ${doc.fileName}**\n\n${preview}${doc.content && doc.content.length > 500 ? '...' : ''}\n\n_Total: ${doc.chunks || 0} chunks_`);
+                        const fullContent = doc.content || 'No content available';
+                        // Display complete document content in conversation
+                        addMessage('system', `📄 **Document: ${doc.fileName}**\n\n${fullContent}\n\n_Total: ${doc.chunks || 0} chunks_`);
                     } else {
                         showError('Could not load document content');
                     }
@@ -1728,18 +1728,43 @@
                 lines.forEach(line => {
                     if (line.trim() && line.includes(':')) {
                         const row = {};
-                        // Split by comma but be careful with commas inside values
-                        const parts = line.split(', ');
 
-                        parts.forEach(part => {
-                            const colonIndex = part.indexOf(':');
-                            if (colonIndex > 0) {
-                                const key = part.substring(0, colonIndex).trim();
-                                const value = part.substring(colonIndex + 1).trim();
-                                row[key] = value;
-                                allKeys.add(key);
+                        // Specialized parsing for review format
+                        if (line.includes('id:') && line.includes('review_text:')) {
+                            // Handle the specific format: id: X, review_text: ..., category: ..., rating: X
+                            const parts = line.split(', ');
+                            let currentKey = '';
+                            let currentValue = '';
+
+                            // Better approach: use regex to extract known fields
+                            const idMatch = line.match(/id:\s*(\d+)/);
+                            const categoryMatch = line.match(/category:\s*(\w+)/);
+                            const ratingMatch = line.match(/rating:\s*(\d+)/);
+                            const reviewMatch = line.match(/review_text:\s*(.*?)(?=,\s*category:|$)/);
+
+                            if (idMatch) {
+                                row['id'] = idMatch[1];
+                                allKeys.add('id');
                             }
-                        });
+                            if (categoryMatch) {
+                                row['category'] = categoryMatch[1];
+                                allKeys.add('category');
+                            }
+                            if (ratingMatch) {
+                                row['rating'] = ratingMatch[1];
+                                allKeys.add('rating');
+                            }
+                            if (reviewMatch) {
+                                row['review_text'] = reviewMatch[1].trim();
+                                allKeys.add('review_text');
+                            }
+
+                            // Save final key-value pair
+                            if (currentKey && currentValue) {
+                                row[currentKey] = currentValue;
+                                allKeys.add(currentKey);
+                            }
+                        }
 
                         if (Object.keys(row).length > 0) {
                             dataRows.push(row);
@@ -1749,8 +1774,12 @@
 
                 if (dataRows.length === 0) return content; // Return original if no data found
 
-                // Create table HTML
-                const headers = Array.from(allKeys);
+                // Create table HTML with logical column ordering
+                const preferredOrder = ['id', 'review_text', 'category', 'rating'];
+                const allKeysArray = Array.from(allKeys);
+                const headers = [...preferredOrder.filter(key => allKeysArray.includes(key)),
+                               ...allKeysArray.filter(key => !preferredOrder.includes(key))];
+
                 let html = '<div class="csv-table-container"><table class="csv-table">';
 
                 // Header row
@@ -1779,6 +1808,79 @@
                 }
 
                 return html;
+            }
+
+            // Convert "Row X: field | field | field" format to HTML table
+            function convertPipeRowsToTable(content) {
+                const lines = content.split('\n');
+                let headerRow = null;
+                let dataRows = [];
+                let newHtml = '';
+
+                lines.forEach(line => {
+                    const trimmed = line.trim();
+
+                    // Look for "Row X: data | data | data" pattern
+                    if (trimmed.match(/^Row \d+: .* \| /)) {
+                        const content = trimmed.split(': ')[1];
+                        const fields = content.split(' | ').map(f => f.trim());
+
+                        // Check if this looks like a header (contains common table words)
+                        if (!headerRow && (content.includes('Category') || content.includes('Volume') || content.includes('Savings') || content.includes('Use Case'))) {
+                            headerRow = fields;
+                        } else if (headerRow && fields.length > 0) {
+                            dataRows.push(fields);
+                        }
+                    } else {
+                        // Non-table content - add to output if we haven't found a table yet
+                        if (!headerRow) {
+                            newHtml += line + '\n';
+                        } else if (headerRow && dataRows.length > 0) {
+                            // We have a complete table, render it
+                            newHtml += renderFlexibleTable(headerRow, dataRows);
+                            headerRow = null;
+                            dataRows = [];
+                            newHtml += line + '\n';
+                        }
+                    }
+                });
+
+                // Render any remaining table
+                if (headerRow && dataRows.length > 0) {
+                    newHtml += renderFlexibleTable(headerRow, dataRows);
+                }
+
+                return newHtml || content; // Return original if no conversion
+            }
+
+            // Flexible table renderer
+            function renderFlexibleTable(headers, rows) {
+                let html = '<div class="csv-table-container"><table class="csv-table">';
+
+                // Determine the maximum number of columns needed
+                const maxColumns = Math.max(
+                    headers.length,
+                    ...rows.map(row => row.length)
+                );
+
+                // Header
+                html += '<thead><tr>';
+                for (let i = 0; i < maxColumns; i++) {
+                    html += `<th>${headers[i] || `Column ${i + 1}`}</th>`;
+                }
+                html += '</tr></thead><tbody>';
+
+                // Data rows
+                rows.forEach(row => {
+                    html += '<tr>';
+                    for (let i = 0; i < maxColumns; i++) {
+                        html += `<td>${row[i] || ''}</td>`;
+                    }
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+                return html + '\n';
             }
 
             // Render vector DB table as HTML (flexible for different structures)
@@ -1853,6 +1955,11 @@
                 // Handle "id: X, field: value" format (like CSV reviews)
                 if (content.includes('id: ') && content.includes(', ') && content.includes(':')) {
                     content = convertKeyValueToTable(content);
+                }
+
+                // Handle "Row X: field | field | field" format (pipe-separated)
+                if (content.includes('Row ') && content.includes(': ') && content.includes(' | ')) {
+                    content = convertPipeRowsToTable(content);
                 }
 
                 // Configure marked for better rendering
@@ -1997,6 +2104,59 @@
                     }
                 });
             }
+
+            // Dynamic table creation tool
+            const createTableTool = wrapTool({
+                name: 'create_table',
+                description: 'Create any custom table with specified data and formatting instructions',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        data: {
+                            type: 'string',
+                            description: 'Raw data, values, or content to be formatted into a table'
+                        },
+                        instructions: {
+                            type: 'string',
+                            description: 'Specific instructions for table structure, columns, formatting, or organization',
+                            default: 'Create a well-organized table from this data'
+                        },
+                        context: {
+                            type: 'string',
+                            description: 'Context about what this table represents or how it should be used',
+                            default: 'custom table'
+                        }
+                    },
+                    required: ['data']
+                },
+                execute: async (args) => {
+                    try {
+                        addMessage('tool', `🔧 Creating custom table...`);
+
+                        const response = await fetch('/api/tools/create-table', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(args)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            return data.message || 'Table created successfully';
+                        } else {
+                            throw new Error(data.error || 'Table creation failed');
+                        }
+
+                    } catch (error) {
+                        console.error('Table creation error:', error);
+                        return `Error creating table: ${error.message}`;
+                    }
+                }
+            });
 
             // Table workflow tool
             const tableWorkflowTool = wrapTool({
@@ -2668,6 +2828,9 @@
                     if (settings.tools?.ragEnabled) {
                         enabledTools.push(tableWorkflowTool);
                     }
+
+                    // Always add dynamic table creation tool
+                    enabledTools.push(createTableTool);
                     
                     // Add instruction about camera/image analysis
                     if (settings.tools?.cameraEnabled) {

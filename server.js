@@ -335,10 +335,13 @@ app.post('/api/session', async (req, res) => {
     const comprehensiveInstructions = `${baseInstructions}
 
 CRITICAL TOOL USAGE RULES:
-1. For ANY table-related requests ("recreate table", "show table", "format table", "table from document", etc.), you MUST use the table_workflow tool. DO NOT use search_documents for table requests.
-2. The table_workflow automatically chains search_documents → format_table for optimal results.
-3. Only use search_documents for non-table document searches.
-4. ABSOLUTELY CRITICAL: When a tool returns a response, use that EXACT text as your response. DO NOT improvise, create fake data, or make up tables. ALWAYS use the actual tool result word-for-word.
+1. For DOCUMENT table requests ("recreate table from document", "show table from file"), use table_workflow tool.
+2. For ANALYSIS questions about uploaded data ("quantify", "compare", "breakdown", "summary"), FIRST use search_documents to get real data, THEN use create_table with that data.
+3. NEVER create tables with made-up data - ALWAYS search documents first to get real information.
+4. The table_workflow is for extracting existing tables from uploaded documents only.
+5. The create_table tool is for creating new tables from real document data or analysis.
+6. WORKFLOW for analysis: search_documents → create_table with results
+7. ABSOLUTELY CRITICAL: When a tool returns a response, use that EXACT text as your response. DO NOT improvise, create fake data, or make up tables.
 
 TABLE HALLUCINATION PREVENTION:
 - NEVER create fake financial data, revenue numbers, or made-up metrics
@@ -1036,6 +1039,49 @@ app.post('/api/tools/format-table', async (req, res) => {
         logger.error('Table formatting error:', error);
         res.status(500).json({
             error: 'Failed to format table',
+            message: error.message
+        });
+    }
+});
+
+// Dynamic table creation endpoint - Direct LLM to agent communication
+app.post('/api/tools/create-table', async (req, res) => {
+    try {
+        const { data, instructions, context } = req.body;
+
+        if (!data) {
+            return res.status(400).json({ error: 'No data provided' });
+        }
+
+        // Import the handler dynamically
+        const { formatTableHandler } = await import('./src/tools/formatTableTool.js');
+
+        // Enhance instructions for dynamic table creation
+        const enhancedInstructions = `${instructions || 'Create a well-organized table from this data'}
+
+FORMATTING REQUIREMENTS:
+- Return ONLY the table in markdown format
+- No explanations or additional text
+- Ensure clean, readable structure
+- Use appropriate column headers
+- Handle missing data gracefully
+- Be creative with organization if the data allows for it`;
+
+        // Execute the table creation
+        const result = await formatTableHandler({
+            rawData: data,
+            context: context || 'custom table',
+            instructions: enhancedInstructions
+        }, {
+            openaiApiKey: process.env.OPENAI_API_KEY
+        });
+
+        res.json(result);
+
+    } catch (error) {
+        logger.error('Table creation error:', error);
+        res.status(500).json({
+            error: 'Failed to create table',
             message: error.message
         });
     }

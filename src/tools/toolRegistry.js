@@ -242,6 +242,91 @@ const toolRegistry = {
                 Example: "Let me format this data into a table for you" → call format_table → present clean result`
         },
 
+        // Dynamic table creation agent
+        create_table: {
+            definition: {
+                name: 'create_table',
+                description: 'Create any custom table with specified data and formatting instructions',
+                parameters: {
+                    type: 'object',
+                    properties: {
+                        data: {
+                            type: 'string',
+                            description: 'Raw data, values, or content to be formatted into a table'
+                        },
+                        instructions: {
+                            type: 'string',
+                            description: 'Specific instructions for table structure, columns, formatting, or organization',
+                            default: 'Create a well-organized table from this data'
+                        },
+                        context: {
+                            type: 'string',
+                            description: 'Context about what this table represents or how it should be used',
+                            default: 'custom table'
+                        }
+                    },
+                    required: ['data']
+                }
+            },
+            handler: async (args, configManager) => {
+                try {
+                    // Use the format table handler with enhanced instructions
+                    const enhancedInstructions = `${args.instructions || 'Create a well-organized table from this data'}
+
+FORMATTING REQUIREMENTS:
+- Return ONLY the table in markdown format
+- No explanations or additional text
+- Ensure clean, readable structure
+- Use appropriate column headers
+- Handle missing data gracefully`;
+
+                    const result = await formatTableHandler({
+                        rawData: args.data,
+                        context: args.context || 'custom table',
+                        instructions: enhancedInstructions
+                    }, {
+                        openaiApiKey: configManager?.openaiApiKey || process.env.OPENAI_API_KEY
+                    });
+
+                    return result;
+                } catch (error) {
+                    return {
+                        success: false,
+                        error: `Table creation failed: ${error.message}`
+                    };
+                }
+            },
+            endpoint: '/api/tools/create-table',
+            category: 'formatting',
+            enabled: true,
+            description: 'Create custom tables with any data and formatting instructions',
+            instructions: `Use this tool to create any table you want without describing what you're doing.
+                Simply send the data and optional formatting instructions to the table creation agent.
+
+                DIRECT USAGE:
+                - Send any raw data (numbers, lists, information, etc.)
+                - Optionally specify table structure or formatting requirements
+                - Get back a clean, formatted table immediately
+                - No need to explain or announce what you're doing
+
+                EXAMPLES:
+                - Data: "Sales: 1000, Marketing: 500, Support: 300" → creates expense table
+                - Data: "John: 25, Sarah: 30, Mike: 28" + Instructions: "Age comparison table"
+                - Data: Any list, comparison, or structured information
+
+                WHEN TO USE create_table:
+                - When you need to organize or present data in table format
+                - For comparisons, analysis, summaries, or any structured data
+                - When you have information that would be clearer as a table
+                - For creating new tables from your analysis or responses
+
+                DO NOT USE create_table for:
+                - Recreating tables from uploaded documents (use table_workflow instead)
+                - Searching document content (use search_documents instead)
+
+                SILENT OPERATION: You can use this tool without telling the user what you're doing - just create the table they need.`
+        },
+
         // NOTE: LangGraph workflows are now managed in the Workflows section of admin panel
         // The recreate_table workflow has been moved to the workflows system for proper management
     }

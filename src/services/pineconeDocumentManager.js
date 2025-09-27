@@ -48,25 +48,29 @@ class PineconeDocumentManager {
                     const indexExists = indexes.indexes?.some(idx => idx.name === this.indexName);
                     
                     if (!indexExists) {
-                        console.log('Creating Pinecone index...');
+                        console.log('Creating serverless Pinecone index...');
                         await this.pinecone.createIndex({
                             name: this.indexName,
-                            dimension: 1536, // OpenAI embeddings dimension
+                            dimension: 1536, // OpenAI text-embedding-ada-002 dimension
                             metric: 'cosine',
                             spec: {
                                 serverless: {
                                     cloud: 'aws',
-                                    region: 'us-east-1'
+                                    region: 'us-west-2' // Updated to us-west-2 as per best practices
                                 }
-                            }
+                            },
+                            waitUntilReady: true // Use built-in wait functionality
                         });
-                        
-                        // Wait for index to be ready
-                        await new Promise(resolve => setTimeout(resolve, 60000)); // Wait 60s for index creation
+                        console.log('Pinecone index created and ready');
                     }
                     
+                    // Connect to index (following Context7 TypeScript client patterns)
                     this.index = this.pinecone.index(this.indexName);
-                    console.log('Connected to Pinecone index:', this.indexName);
+                    
+                    // Get index stats to verify connection
+                    const stats = await this.index.describeIndexStats();
+                    console.log(`✅ Connected to Pinecone index: ${this.indexName}`);
+                    console.log(`📊 Index stats: ${stats.totalRecordCount || 0} vectors across ${Object.keys(stats.namespaces || {}).length} namespaces`);
                 } catch (error) {
                     console.error('Pinecone initialization error:', error);
                     console.log('Falling back to local storage');
@@ -103,15 +107,29 @@ class PineconeDocumentManager {
         );
     }
 
-    // Generate embeddings using OpenAI
+    // Generate embeddings using OpenAI (matching Pinecone index dimension)
     async generateEmbeddings(texts) {
         try {
-            const response = await this.openai.embeddings.create({
-                model: "text-embedding-3-small",  // Using newer, better model
-                input: texts
-            });
+            // Handle large batches - OpenAI has token limits
+            const maxBatchSize = 100; // Process in manageable batches
+            const allEmbeddings = [];
             
-            return response.data.map(d => d.embedding);
+            for (let i = 0; i < texts.length; i += maxBatchSize) {
+                const batch = texts.slice(i, i + maxBatchSize);
+                const response = await this.openai.embeddings.create({
+                    model: "text-embedding-ada-002",  // Must match index dimension (1536)
+                    input: batch
+                });
+                
+                allEmbeddings.push(...response.data.map(d => d.embedding));
+                
+                // Rate limiting - respect API limits
+                if (i + maxBatchSize < texts.length) {
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            }
+            
+            return allEmbeddings;
         } catch (error) {
             console.error('Embedding generation error:', error);
             // Return empty embeddings as fallback
@@ -147,11 +165,24 @@ class PineconeDocumentManager {
                         dynamicTyping: true,
                         skipEmptyLines: true
                     });
-                    
-                    content = parsed.data.map(row => 
+
+                    content = parsed.data.map(row =>
                         Object.entries(row).map(([key, value]) => `${key}: ${value}`).join(', ')
                     ).join('\n');
-                    chunks = this.chunkText(content);
+
+                    // For CSV files, use Context7 optimized chunking to preserve complete records
+                    const contentLength = content.length;
+                    console.log(`Processing CSV file: ${contentLength} chars, ${parsed.data.length} records`);
+
+                    if (contentLength <= 7000 || parsed.data.length <= 25) {
+                        // Small CSV files - keep as single chunk to preserve all data
+                        chunks = [content];
+                        console.log(`CSV file kept as single chunk (${contentLength} chars, ${parsed.data.length} records)`);
+                    } else {
+                        // Larger CSV files - use record-aware chunking
+                        chunks = this.chunkCSVRecords(content, 5000);
+                        console.log(`CSV file split into ${chunks.length} chunks for ${parsed.data.length} records`);
+                    }
                     break;
                     
                 case '.json':
@@ -221,14 +252,47 @@ class PineconeDocumentManager {
                 case '.xls':
                     try {
                         const workbook = xlsx.readFile(destPath);
-                        const sheets = [];
+                        const allSheets = [];
+                        
                         for (const sheetName of workbook.SheetNames) {
                             const sheet = workbook.Sheets[sheetName];
-                            const jsonData = xlsx.utils.sheet_to_json(sheet, { header: 1 });
-                            sheets.push(`Sheet: ${sheetName}\n${jsonData.map(row => row.join('\t')).join('\n')}`);
+                            // Get data as array including headers
+                            const rawData = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+                            
+                            if (rawData.length === 0) continue;
+                            
+                            // Format as pipe-separated for better parsing
+                            const headers = rawData[0];
+                            const formattedRows = [];
+                            
+                            // Add headers
+                            formattedRows.push(`Sheet: ${sheetName}`);
+                            formattedRows.push(headers.map(h => String(h || '').trim()).join(' | '));
+                            formattedRows.push('-'.repeat(50)); // Separator line
+                            
+                            // Add data rows with row numbers
+                            for (let i = 1; i < rawData.length; i++) {
+                                const row = rawData[i];
+                                const formattedRow = `Row ${i}: ` + row.map(cell => String(cell || '').trim()).join(' | ');
+                                formattedRows.push(formattedRow);
+                            }
+                            
+                            allSheets.push(formattedRows.join('\n'));
                         }
-                        content = sheets.join('\n\n');
-                        chunks = this.chunkText(content);
+                        
+                        content = allSheets.join('\n\n');
+                        
+                        // For Excel files, use larger chunks to preserve table structure
+                        const contentLength = content.length;
+                        if (contentLength <= 12000) {
+                            // Small Excel files - keep as single chunk
+                            chunks = [content];
+                            console.log(`Excel file kept as single chunk (${contentLength} chars)`);
+                        } else {
+                            // Larger Excel files - use bigger chunks with more overlap
+                            chunks = this.chunkText(content, 8000, 1000);
+                            console.log(`Excel file split into ${chunks.length} chunks`);
+                        }
                     } catch (xlsError) {
                         console.error('Excel parsing error:', xlsError);
                         content = `Excel document: ${originalName} (text extraction failed)`;
@@ -243,6 +307,42 @@ class PineconeDocumentManager {
                     // Remove HTML tags for better text extraction
                     const textContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                     chunks = this.chunkText(textContent);
+                    break;
+                    
+                case '.pptx':
+                case '.ppt':
+                    // PowerPoint files - extract text from slides using xlsx library
+                    try {
+                        const pptBuffer = await fs.readFile(destPath);
+                        // For PPTX, we can try to extract text using mammoth or fall back to Vision API
+                        // Note: Full PPTX support requires specialized library, using Vision API as fallback
+                        console.log('Processing PowerPoint file with Vision API...');
+                        content = await this.processPowerPointWithVision(destPath, originalName);
+                        chunks = this.chunkText(content);
+                    } catch (pptError) {
+                        console.error('PowerPoint parsing error:', pptError);
+                        content = `PowerPoint presentation: ${originalName} (text extraction via OCR)`;
+                        chunks = [content];
+                    }
+                    break;
+                    
+                case '.rtf':
+                    // RTF files - extract plain text
+                    try {
+                        const rtfContent = await fs.readFile(destPath, 'utf8');
+                        // Basic RTF to text conversion - remove RTF control codes
+                        content = rtfContent
+                            .replace(/\\par[\s]?/g, '\n')  // Replace paragraph markers
+                            .replace(/\{\\.*?\}/g, '')      // Remove RTF groups
+                            .replace(/\\[a-z]+\d*\s?/gi, '') // Remove control words
+                            .replace(/[{}]/g, '')           // Remove remaining braces
+                            .trim();
+                        chunks = this.chunkText(content);
+                    } catch (rtfError) {
+                        console.error('RTF parsing error:', rtfError);
+                        content = `RTF document: ${originalName} (text extraction failed)`;
+                        chunks = [content];
+                    }
                     break;
                     
                 default:
@@ -274,11 +374,27 @@ class PineconeDocumentManager {
                     });
                 }
                 
-                // Upsert to Pinecone in batches
-                const batchSize = 100;
+                // Upsert to Pinecone following Context7 best practices
+                const batchSize = 100; // Recommended batch size from Pinecone docs
+                const namespacedIndex = this.index.namespace(this.namespace);
+                
                 for (let i = 0; i < vectors.length; i += batchSize) {
                     const batch = vectors.slice(i, i + batchSize);
-                    await this.index.namespace(this.namespace).upsert(batch);
+                    try {
+                        await namespacedIndex.upsert(batch);
+                        console.log(`✅ Upserted batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(vectors.length/batchSize)} for ${originalName}`);
+                    } catch (error) {
+                        console.error(`❌ Error upserting batch ${Math.floor(i/batchSize) + 1}:`, error);
+                        // Retry once with backoff
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        try {
+                            await namespacedIndex.upsert(batch);
+                            console.log(`✅ Retry successful for batch ${Math.floor(i/batchSize) + 1}`);
+                        } catch (retryError) {
+                            console.error(`❌ Retry failed for batch ${Math.floor(i/batchSize) + 1}:`, retryError);
+                            throw retryError;
+                        }
+                    }
                 }
                 
                 console.log(`Added ${vectors.length} chunks to Pinecone for document ${originalName}`);
@@ -329,38 +445,76 @@ class PineconeDocumentManager {
     }
 
     // Enhanced chunking for better context with smaller chunks for better precision
-    chunkText(text, maxChunkSize = 1500, overlap = 300) {
+    // Pinecone best practices chunking - Context7 optimized
+    chunkText(text, maxChunkSize = 1000, overlap = 200) {
         const chunks = [];
-        const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+        const textLength = text.length;
+
+        // For very small content, keep as single chunk
+        if (textLength <= maxChunkSize) {
+            return [text];
+        }
+
+        // For CSV-like data with line-based records, preserve record boundaries
+        if (text.includes('id:') && text.includes(',')) {
+            return this.chunkCSVRecords(text, maxChunkSize);
+        }
+
+        // For other text, use line-aware chunking to preserve structure
+        const lines = text.split('\n');
         let currentChunk = '';
-        let previousChunk = '';
-        
-        for (const sentence of sentences) {
-            if ((currentChunk + sentence).length <= maxChunkSize) {
-                currentChunk += sentence + ' ';
-            } else {
-                if (currentChunk) {
-                    // Add overlap from previous chunk for better context
-                    if (previousChunk && overlap > 0) {
-                        const overlapText = previousChunk.split(' ').slice(-Math.floor(overlap/10)).join(' ');
-                        chunks.push(overlapText + ' ' + currentChunk.trim());
-                    } else {
-                        chunks.push(currentChunk.trim());
-                    }
-                    previousChunk = currentChunk;
-                }
-                currentChunk = sentence + ' ';
-            }
-        }
-        
-        if (currentChunk) {
-            if (previousChunk && overlap > 0) {
-                const overlapText = previousChunk.split(' ').slice(-Math.floor(overlap/10)).join(' ');
-                chunks.push(overlapText + ' ' + currentChunk.trim());
-            } else {
+
+        for (const line of lines) {
+            const lineWithNewline = line + '\n';
+
+            // If adding this line would exceed chunk size
+            if (currentChunk.length + lineWithNewline.length > maxChunkSize && currentChunk.length > 0) {
                 chunks.push(currentChunk.trim());
+                // Start next chunk with overlap (last few lines)
+                const currentLines = currentChunk.split('\n');
+                const overlapLines = currentLines.slice(-Math.floor(overlap/100));
+                currentChunk = overlapLines.join('\n') + '\n' + line + '\n';
+            } else {
+                currentChunk += lineWithNewline;
             }
         }
+
+        // Add final chunk
+        if (currentChunk.trim()) {
+            chunks.push(currentChunk.trim());
+        }
+
+        return chunks.filter(chunk => chunk.length > 0);
+    }
+
+    // Specialized chunking for CSV records to preserve complete entries
+    chunkCSVRecords(text, maxChunkSize = 1000) {
+        const lines = text.split('\n');
+        const chunks = [];
+        let currentChunk = '';
+
+        console.log(`CSV chunking: ${lines.length} lines, max chunk size: ${maxChunkSize}`);
+
+        for (const line of lines) {
+            const lineWithNewline = line + '\n';
+
+            // If adding this line would exceed chunk size, save current chunk
+            if (currentChunk.length + lineWithNewline.length > maxChunkSize && currentChunk.length > 0) {
+                chunks.push(currentChunk.trim());
+                console.log(`CSV chunk created: ${currentChunk.length} chars`);
+                currentChunk = lineWithNewline;
+            } else {
+                currentChunk += lineWithNewline;
+            }
+        }
+
+        // Add final chunk
+        if (currentChunk.trim().length > 0) {
+            chunks.push(currentChunk.trim());
+            console.log(`CSV final chunk: ${currentChunk.length} chars`);
+        }
+
+        console.log(`CSV chunking complete: ${chunks.length} chunks total`);
         return chunks.length > 0 ? chunks : [text];
     }
 
@@ -452,18 +606,81 @@ class PineconeDocumentManager {
         }
     }
 
-    // Search documents with citations
+    // Process PowerPoint using Vision API for OCR
+    async processPowerPointWithVision(pptPath, fileName) {
+        try {
+            // For now, treat PowerPoint files as binary and use a simplified extraction
+            // In production, you would use a specialized library like node-pptx or convert to PDF first
+            const pptData = await fs.readFile(pptPath, { encoding: 'base64' });
+            
+            // Use GPT-4 Vision to extract text from PowerPoint (limited support)
+            const response = await this.openai.chat.completions.create({
+                model: 'gpt-4o',
+                messages: [{
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: 'This is a PowerPoint presentation file. Extract ALL text content from the slides including: titles, bullet points, text boxes, notes, tables, and any other visible text. Format the output clearly with slide numbers and content structure preserved.'
+                        },
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: `data:application/vnd.ms-powerpoint;base64,${pptData}`,
+                                detail: 'high'
+                            }
+                        }
+                    ]
+                }],
+                max_tokens: 4096,
+                temperature: 0.1
+            });
+            
+            const extractedText = response.choices[0]?.message?.content || '';
+            console.log(`Vision API extracted ${extractedText.length} characters from PowerPoint`);
+            return extractedText;
+            
+        } catch (error) {
+            console.error('Error processing PowerPoint with Vision API:', error);
+            // Fallback: try to extract any readable text from the binary
+            try {
+                const content = await fs.readFile(pptPath, 'utf8');
+                // Extract any readable ASCII text from the binary file
+                const readableText = content.replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .substring(0, 5000); // Limit to first 5000 chars
+                
+                if (readableText.length > 100) {
+                    return `PowerPoint: ${fileName}\nExtracted text fragments:\n${readableText}`;
+                }
+            } catch (fallbackError) {
+                console.error('Fallback text extraction failed:', fallbackError);
+            }
+            
+            return `PowerPoint presentation: ${fileName} (content extraction failed - consider converting to PDF)`;
+        }
+    }
+
+    // Search documents with complete retrieval (following Context7 patterns)
     async searchDocuments(query, limit = 10) {
         try {
             if (this.index) {
                 // Use Pinecone for search
                 const queryEmbedding = await this.generateEmbeddings([query]);
                 
-                const searchResults = await this.index.namespace(this.namespace).query({
+                // CRITICAL: For RAG, retrieve MORE than requested to ensure complete documents
+                // Following Context7 patterns - retrieve enough to reconstruct full documents
+                const effectiveLimit = Math.max(limit * 10, 500); // Get many chunks to ensure completeness
+                
+                // Query with namespace targeting (Context7 pattern)
+                const namespacedIndex = this.index.namespace(this.namespace);
+                const searchResults = await namespacedIndex.query({
                     vector: queryEmbedding[0],
-                    topK: limit,
+                    topK: effectiveLimit,
                     includeMetadata: true,
                     includeValues: false
+                    // No filter - we want ALL relevant content
                 });
                 
                 if (!searchResults.matches || searchResults.matches.length === 0) {
@@ -475,29 +692,119 @@ class PineconeDocumentManager {
                     };
                 }
                 
-                // Format results with citations
-                const formattedResults = searchResults.matches.map((match, idx) => {
+                // Group by document to ensure we get complete documents
+                const documentGroups = {};
+                searchResults.matches.forEach(match => {
                     const metadata = match.metadata || {};
+                    const docId = metadata.document_id || 'unknown';
                     
-                    // Extract a snippet around the most relevant part
-                    const fullText = metadata.full_text || metadata.chunk_text || '';
-                    const snippet = this.extractSnippet(fullText, query, 150);
+                    if (!documentGroups[docId]) {
+                        documentGroups[docId] = {
+                            documentId: docId,
+                            fileName: metadata.document_name || 'Unknown',
+                            fileType: metadata.file_type,
+                            uploadDate: metadata.upload_date,
+                            chunks: [],
+                            maxScore: 0,
+                            totalChunks: metadata.total_chunks || 1
+                        };
+                    }
                     
-                    return {
-                        fileName: metadata.document_name || 'Unknown',
-                        content: fullText,
-                        snippet: snippet,
-                        relevanceScore: match.score || 0,
-                        vectorScore: match.score || 0,
-                        documentId: metadata.document_id,
-                        chunkIndex: metadata.chunk_index,
-                        citation: `[${idx + 1}] ${metadata.document_name || 'Document'} (Chunk ${(metadata.chunk_index || 0) + 1})`,
-                        metadata: {
-                            uploadedAt: metadata.upload_date,
-                            fileType: metadata.file_type
-                        }
-                    };
+                    documentGroups[docId].chunks.push({
+                        chunkIndex: metadata.chunk_index || 0,
+                        content: metadata.full_text || metadata.chunk_text || '', // Use FULL text
+                        score: match.score || 0
+                    });
+                    
+                    documentGroups[docId].maxScore = Math.max(documentGroups[docId].maxScore, match.score || 0);
                 });
+                
+                // Process and format results
+                const formattedResults = [];
+                
+                // Sort documents by max relevance score
+                const sortedDocs = Object.values(documentGroups).sort((a, b) => b.maxScore - a.maxScore);
+                
+                for (const doc of sortedDocs) {
+                    // Sort chunks by index to maintain document order
+                    doc.chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+                    
+                    // For highly relevant documents (score > 0.7), include ALL chunks
+                    // This ensures complete document retrieval for accurate RAG
+                    if (doc.maxScore > 0.7) {
+                        // Check if we have all chunks, if not, fetch missing ones
+                        if (doc.chunks.length < doc.totalChunks) {
+                            // We have partial chunks - try to fetch remaining chunks
+                            const missingIndices = [];
+                            for (let i = 0; i < doc.totalChunks; i++) {
+                                if (!doc.chunks.some(c => c.chunkIndex === i)) {
+                                    missingIndices.push(i);
+                                }
+                            }
+                            
+                            if (missingIndices.length > 0) {
+                                // Fetch missing chunks directly
+                                const missingIds = missingIndices.map(idx => `${doc.documentId}_chunk_${idx}`);
+                                try {
+                                    const fetchResult = await namespacedIndex.fetch(missingIds);
+                                    Object.entries(fetchResult.records || {}).forEach(([id, record]) => {
+                                        if (record && record.metadata) {
+                                            const chunkIdx = parseInt(id.split('_chunk_')[1]);
+                                            doc.chunks.push({
+                                                chunkIndex: chunkIdx,
+                                                content: record.metadata.full_text || record.metadata.chunk_text || '',
+                                                score: 0.7 // Assign minimum threshold score
+                                            });
+                                        }
+                                    });
+                                    // Re-sort after adding missing chunks
+                                    doc.chunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+                                } catch (fetchError) {
+                                    console.warn(`Could not fetch missing chunks for ${doc.fileName}:`, fetchError);
+                                }
+                            }
+                        }
+                        
+                        // Add ALL chunks from this highly relevant document
+                        doc.chunks.forEach(chunk => {
+                            formattedResults.push({
+                                fileName: doc.fileName,
+                                content: chunk.content, // FULL content, no truncation
+                                snippet: chunk.content.substring(0, 150) + '...', // Short preview
+                                relevanceScore: chunk.score,
+                                vectorScore: chunk.score,
+                                documentId: doc.documentId,
+                                chunkIndex: chunk.chunkIndex,
+                                citation: `[${formattedResults.length + 1}] ${doc.fileName} (Section ${chunk.chunkIndex + 1}/${doc.totalChunks})`,
+                                metadata: {
+                                    uploadedAt: doc.uploadDate,
+                                    fileType: doc.fileType
+                                }
+                            });
+                        });
+                    } else if (doc.maxScore > 0.5) {
+                        // For moderately relevant docs, include chunks with score > 0.5
+                        doc.chunks.filter(chunk => chunk.score > 0.5).forEach(chunk => {
+                            formattedResults.push({
+                                fileName: doc.fileName,
+                                content: chunk.content,
+                                snippet: chunk.content.substring(0, 150) + '...',
+                                relevanceScore: chunk.score,
+                                vectorScore: chunk.score,
+                                documentId: doc.documentId,
+                                chunkIndex: chunk.chunkIndex,
+                                citation: `[${formattedResults.length + 1}] ${doc.fileName} (Section ${chunk.chunkIndex + 1})`,
+                                metadata: {
+                                    uploadedAt: doc.uploadDate,
+                                    fileType: doc.fileType
+                                }
+                            });
+                        });
+                    }
+                    
+                    // Stop if we have enough results
+                    if (formattedResults.length >= limit * 10) break;
+                }
                 
                 // Update access metadata
                 formattedResults.forEach(result => {

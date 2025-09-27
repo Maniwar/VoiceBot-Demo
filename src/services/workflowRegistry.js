@@ -113,20 +113,24 @@ class WorkflowRegistry {
 
     generateWorkflowInstructions(workflow) {
         const triggerList = workflow.triggers && workflow.triggers.length > 0 ?
-            workflow.triggers.map(t => `"${t}"`).join(', ') :
-            '"recreate table", "show table"';
+            workflow.triggers.map(t => `"${t} from document"`).join(', ') :
+            '"recreate table from document", "show table from document"';
 
-        return `Use this workflow when users ask: ${triggerList}.
+        return `Use this workflow ONLY when users specifically ask to: ${triggerList} FROM UPLOADED DOCUMENTS.
 
 This workflow automatically executes: ${workflow.steps.join(' → ')}
 
-WORKFLOW BENEFITS:
-- Automatic tool chaining - no need to call individual tools
-- Optimized data flow between steps
-- Consistent, reliable results
-- No instruction leakage to users
+WHEN TO USE table_workflow:
+- "Recreate the table from the document"
+- "Show the table from the uploaded file"
+- "Display the table data from the document"
 
-Simply call this workflow with the user's query and it will handle the complete process.`;
+DO NOT USE table_workflow for:
+- Creating new tables from analysis or responses (use create_table instead)
+- Presenting your own data or comparisons (use create_table instead)
+- Organizing information you generate (use create_table instead)
+
+This workflow is specifically for extracting and formatting tables from uploaded document content.`;
     }
 
     async reload() {
